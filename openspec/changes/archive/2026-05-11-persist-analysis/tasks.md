@@ -1,0 +1,5 @@
+- [x] Add `--no-save` flag to `argparse` in `demark/cli.py`
+- [x] Create `save_to_csv` function in `demark/cli.py`
+- [x] Update `plot_results` to support saving to a specific output directory
+- [x] Implement directory creation and persistence logic in `main()`
+- [x] Verify CSV output and directory creation with a test run

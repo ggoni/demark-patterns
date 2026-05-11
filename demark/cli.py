@@ -1,4 +1,5 @@
 import argparse
+import os
 from datetime import datetime
 from demark.providers import YFinanceProvider
 from demark.engine import DeMarkEngine
@@ -10,6 +11,7 @@ def main():
     parser.add_argument("--interval", type=str, default="1d", help="Data interval (1m, 1h, 1d, 1wk)")
     parser.add_argument("--period", type=str, default="1y", help="Data period (1mo, 6mo, 1y, max)")
     parser.add_argument("--plot", action="store_true", help="Plot the results")
+    parser.add_argument("--no-save", action="store_true", help="Do not save CSV/plot files to disk")
     
     args = parser.parse_args()
     
@@ -70,10 +72,25 @@ def main():
     print(f"  RECOMMENDATION: {color}{last_rec}{RESET}")
     print(f"{'='*40}")
 
-    if args.plot:
+    if not args.no_save:
+        output_dir = "analysis"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        save_to_csv(results, args.ticker, output_dir)
+        
+        if args.plot:
+            plot_results(results, args.ticker, output_dir)
+    elif args.plot:
         plot_results(results, args.ticker)
 
-def plot_results(df, ticker):
+def save_to_csv(df, ticker, output_dir):
+    date_str = datetime.now().strftime('%y%m%d')
+    filename = f"{ticker}_{date_str}.csv"
+    path = os.path.join(output_dir, filename)
+    df.to_csv(path)
+    print(f"Analysis persisted to {path}")
+
+def plot_results(df, ticker, output_dir="."):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True, gridspec_kw={'height_ratios': [3, 1]})
     
     # Top plot: Price and TDST
@@ -109,9 +126,9 @@ def plot_results(df, ticker):
     
     plt.tight_layout()
     date_str  = datetime.now().strftime('%y%m%d')
-    plot_path = f"{ticker}_{date_str}.png"
+    plot_path = os.path.join(output_dir, f"{ticker}_{date_str}.png")
     plt.savefig(plot_path)
-    print(f"\nPlot saved to {plot_path}")
+    print(f"Plot saved to {plot_path}")
 
 if __name__ == "__main__":
     main()
