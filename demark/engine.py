@@ -141,11 +141,34 @@ class DeMarkEngine:
             self.df.at[self.df.index[i], 'tdst_resistance'] = last_resistance
             
         return self.df
-    
+
+    def calculate_recommendations(self) -> pd.DataFrame:
+        """
+        Derive a Buy / Hold / Sell recommendation per bar.
+
+        Rules (in priority order):
+          BUY  – buy_setup_count == 9  OR  buy_countdown_count == 13
+          SELL – sell_setup_count == 9 OR  sell_countdown_count == 13
+          HOLD – otherwise
+        """
+        conditions_buy = (
+            (self.df['buy_setup_count'] == 9) |
+            (self.df['buy_countdown_count'] == 13)
+        )
+        conditions_sell = (
+            (self.df['sell_setup_count'] == 9) |
+            (self.df['sell_countdown_count'] == 13)
+        )
+        self.df['recommendation'] = 'HOLD'
+        self.df.loc[conditions_sell, 'recommendation'] = 'SELL'
+        self.df.loc[conditions_buy, 'recommendation'] = 'BUY'
+        return self.df
+
     def run_all(self) -> pd.DataFrame:
         """Run all DeMark calculations in sequence."""
         self.calculate_setup()
         self.validate_intersection()
         self.calculate_countdown()
         self.calculate_tdst()
+        self.calculate_recommendations()
         return self.df

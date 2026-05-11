@@ -78,3 +78,56 @@ def test_tdst(sample_data):
     # Index 12 Low is 87.
     assert df.iloc[12]['tdst_support'] == 87
     assert df.iloc[19]['tdst_support'] == 87
+
+
+# ── Recommendation tests ──────────────────────────────────────────────────
+
+def test_recommendation_buy_on_setup(sample_data):
+    """Bar with buy_setup_count == 9 should get BUY."""
+    engine = DeMarkEngine(sample_data)
+    df = engine.run_all()
+    # index 12 is where buy_setup_count reaches 9
+    assert df.iloc[12]['recommendation'] == 'BUY'
+
+
+def test_recommendation_hold_mid_setup(sample_data):
+    """Bars before setup completion should be HOLD."""
+    engine = DeMarkEngine(sample_data)
+    df = engine.run_all()
+    # index 8 has buy_setup_count == 5, no countdown → HOLD
+    assert df.iloc[8]['recommendation'] == 'HOLD'
+
+
+def test_recommendation_sell_on_setup():
+    """Bar with sell_setup_count == 9 should get SELL."""
+    dates = pd.date_range(start="2024-01-01", periods=20, freq='D')
+    # Rising price: Close > Close-4
+    closes = [100 + i for i in range(20)]
+    highs = [c + 1 for c in closes]
+    lows  = [c - 1 for c in closes]
+    df = pd.DataFrame({
+        'Open': closes, 'High': highs, 'Low': lows,
+        'Close': closes, 'Volume': [1000] * 20
+    }, index=dates)
+    engine = DeMarkEngine(df)
+    result = engine.run_all()
+    # sell_setup_count reaches 9 at index 12
+    assert result.iloc[12]['recommendation'] == 'SELL'
+
+
+def test_recommendation_buy_on_countdown():
+    """Bar where buy_countdown_count reaches 13 should get BUY."""
+    # Need 13 bars post-setup that satisfy Close <= Low[i-2]
+    # 4 (setup lead-in) + 9 (setup) + 13 (countdown) = 26 bars min + buffer
+    n = 40
+    dates = pd.date_range(start="2024-01-01", periods=n, freq='D')
+    closes = [100 - i * 0.5 for i in range(n)]
+    highs  = [c + 0.5 for c in closes]
+    lows   = [c - 0.5 for c in closes]
+    df = pd.DataFrame({
+        'Open': closes, 'High': highs, 'Low': lows,
+        'Close': closes, 'Volume': [1000] * n
+    }, index=dates)
+    engine = DeMarkEngine(df)
+    result = engine.run_all()
+    assert 'BUY' in result['recommendation'].values

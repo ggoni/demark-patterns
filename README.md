@@ -25,8 +25,7 @@ uv pip install -r requirements.txt
 Run the analysis for any ticker:
 
 ```bash
-export PYTHONPATH=$PYTHONPATH:.
-python3 demark/cli.py --ticker NVDA --interval 1d --period 1y --plot
+uv run demark --ticker NVDA --interval 1d --period 1y --plot
 ```
 
 ### CLI Arguments

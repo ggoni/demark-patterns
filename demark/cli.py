@@ -24,10 +24,9 @@ def main():
     engine = DeMarkEngine(df)
     results = engine.run_all()
     
-    # Formatted output (Task 4.2)
+    # Formatted output
     print("\nRecent Analysis Results (Last 15 bars):")
-    
-    # Select and rename columns for display
+
     display_df = results.tail(15).copy()
     display_cols = {
         'Close': 'Price',
@@ -36,25 +35,39 @@ def main():
         'buy_countdown_count': 'B-CD',
         'sell_countdown_count': 'S-CD',
         'tdst_support': 'Support',
-        'tdst_resistance': 'Resist'
+        'tdst_resistance': 'Resist',
+        'recommendation': 'Action',
     }
-    
-    # Format and print
+
     table_df = display_df[list(display_cols.keys())].rename(columns=display_cols)
-    # Filter out 0s for readability
     table_df = table_df.replace(0, '')
-    print(table_df.to_string())
-    
-    # Highlight signals
-    last_row = results.iloc[-1]
-    if last_row['buy_setup_count'] == 9:
-        print("\n🔥 SIGNAL: TD Buy Setup Completed (9)!")
-    if last_row['sell_setup_count'] == 9:
-        print("\n🔥 SIGNAL: TD Sell Setup Completed (9)!")
-    if last_row['buy_countdown_count'] == 13:
-        print("\n🚀 SIGNAL: TD Buy Countdown Completed (13)!")
-    if last_row['sell_countdown_count'] == 13:
-        print("\n🚀 SIGNAL: TD Sell Countdown Completed (13)!")
+
+    # ANSI color helpers
+    GREEN  = '\033[92m'
+    RED    = '\033[91m'
+    YELLOW = '\033[93m'
+    RESET  = '\033[0m'
+
+    def colorize(val):
+        if val == 'BUY':  return f"{GREEN}{val}{RESET}"
+        if val == 'SELL': return f"{RED}{val}{RESET}"
+        return f"{YELLOW}{val}{RESET}"
+
+    # Print header manually so we can colour the Action column
+    raw = table_df.to_string()
+    lines = raw.split('\n')
+    for line in lines:
+        if any(a in line for a in ('BUY', 'SELL', 'HOLD')):
+            for action in ('BUY', 'SELL', 'HOLD'):
+                line = line.replace(action, colorize(action))
+        print(line)
+
+    # Prominent recommendation for the latest bar
+    last_rec = results.iloc[-1]['recommendation']
+    color = GREEN if last_rec == 'BUY' else (RED if last_rec == 'SELL' else YELLOW)
+    print(f"\n{'='*40}")
+    print(f"  RECOMMENDATION: {color}{last_rec}{RESET}")
+    print(f"{'='*40}")
 
     if args.plot:
         plot_results(results, args.ticker)
