@@ -9,6 +9,10 @@ A robust technical analysis engine that implements Tom DeMark’s Sequential and
 - **TD Countdown**: Tracks 13-count exhaustion signals following a completed setup.
 - **TDST Lines**: Calculates Support (TD Setup Trend) and Resistance levels based on the extremes of completed setups.
 - **Vectorized Engine**: High-performance calculations using `pandas` and `numpy`.
+- **Trading Recommendations**: Multi-factor decision engine integrating:
+  - **Exhaustion Signals**: Setup 9 and Countdown 13 completion.
+  - **Volatility Filtering**: Overbought/Oversold detection using Bollinger Bands.
+  - **Trend Breakouts**: Event-driven alerts for TDST Support/Resistance crossovers.
 - **Interactive CLI**: Fetch data for any ticker and visualize the results.
 
 ## Installation
