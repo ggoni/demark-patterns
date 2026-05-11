@@ -164,11 +164,26 @@ class DeMarkEngine:
         self.df.loc[conditions_buy, 'recommendation'] = 'BUY'
         return self.df
 
+    def calculate_bollinger_bands(self, period: int = 20, std_dev: float = 2.0) -> pd.DataFrame:
+        """
+        Calculate Bollinger Bands.
+          bb_middle = rolling SMA(period)
+          bb_upper  = bb_middle + std_dev * rolling_std
+          bb_lower  = bb_middle - std_dev * rolling_std
+        """
+        close = self.df['Close']
+        self.df['bb_middle'] = close.rolling(period).mean()
+        rolling_std = close.rolling(period).std()
+        self.df['bb_upper'] = self.df['bb_middle'] + std_dev * rolling_std
+        self.df['bb_lower'] = self.df['bb_middle'] - std_dev * rolling_std
+        return self.df
+
     def run_all(self) -> pd.DataFrame:
         """Run all DeMark calculations in sequence."""
         self.calculate_setup()
         self.validate_intersection()
         self.calculate_countdown()
         self.calculate_tdst()
+        self.calculate_bollinger_bands()
         self.calculate_recommendations()
         return self.df

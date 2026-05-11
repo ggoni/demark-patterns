@@ -131,3 +131,14 @@ def test_recommendation_buy_on_countdown():
     engine = DeMarkEngine(df)
     result = engine.run_all()
     assert 'BUY' in result['recommendation'].values
+
+
+def test_bollinger_bands(sample_data):
+    """bb_upper, bb_middle, bb_lower must exist; upper > lower where not NaN."""
+    engine = DeMarkEngine(sample_data)
+    df = engine.calculate_bollinger_bands()
+    assert 'bb_upper'  in df.columns
+    assert 'bb_middle' in df.columns
+    assert 'bb_lower'  in df.columns
+    valid = df.dropna(subset=['bb_upper', 'bb_lower'])
+    assert (valid['bb_upper'] > valid['bb_lower']).all()

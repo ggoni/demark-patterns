@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 from demark.providers import YFinanceProvider
 from demark.engine import DeMarkEngine
 import matplotlib.pyplot as plt
@@ -81,7 +82,14 @@ def plot_results(df, ticker):
         ax1.plot(df.index, df['tdst_support'], label='TDST Support', color='green', linestyle='--')
     if 'tdst_resistance' in df.columns:
         ax1.plot(df.index, df['tdst_resistance'], label='TDST Resist', color='red', linestyle='--')
-    
+
+    # Bollinger Bands overlay
+    if 'bb_upper' in df.columns:
+        ax1.plot(df.index, df['bb_upper'],   color='steelblue', linewidth=0.8, linestyle='--', label='BB Upper')
+        ax1.plot(df.index, df['bb_middle'],  color='steelblue', linewidth=1.0, label='BB SMA-20')
+        ax1.plot(df.index, df['bb_lower'],   color='steelblue', linewidth=0.8, linestyle='--', label='BB Lower')
+        ax1.fill_between(df.index, df['bb_upper'], df['bb_lower'], alpha=0.08, color='steelblue')
+
     # Annotate counts
     for i in range(len(df)):
         if df.iloc[i]['buy_setup_count'] > 0:
@@ -100,7 +108,8 @@ def plot_results(df, ticker):
     ax2.set_ylabel("Countdown")
     
     plt.tight_layout()
-    plot_path = "demark_analysis.png"
+    date_str  = datetime.now().strftime('%y%m%d')
+    plot_path = f"{ticker}_{date_str}.png"
     plt.savefig(plot_path)
     print(f"\nPlot saved to {plot_path}")
 
