@@ -105,6 +105,21 @@ def _plot_frame():
     )
 
 
+def _ohlcv_frame(periods=40):
+    index = pd.date_range("2023-01-01", periods=periods)
+    closes = [100.0 - (i * 0.5) for i in range(periods)]
+    return pd.DataFrame(
+        {
+            "Open": closes,
+            "High": [c + 1.0 for c in closes],
+            "Low": [c - 1.0 for c in closes],
+            "Close": closes,
+            "Volume": [1000 + i for i in range(periods)],
+        },
+        index=index,
+    )
+
+
 def test_save_to_csv_writes_output_file(tmp_path):
     df = _results_frame()
 
@@ -124,3 +139,33 @@ def test_plot_results_writes_png_file(tmp_path):
     files = list(tmp_path.glob("AAPL_*.png"))
     assert len(files) == 1
     assert files[0].stat().st_size > 0
+
+
+@patch("demark.cli.YFinanceProvider.fetch_data")
+@patch("sys.argv", ["demark", "--ticker", "AAPL", "--period", "1mo", "--plot"])
+def test_cli_e2e_persists_csv_and_plot(mock_fetch, tmp_path, monkeypatch):
+    mock_fetch.return_value = _ohlcv_frame()
+    monkeypatch.chdir(tmp_path)
+
+    cli.main()
+
+    analysis_dir = tmp_path / "analysis"
+    assert analysis_dir.exists()
+    assert len(list(analysis_dir.glob("AAPL_*.csv"))) == 1
+    png_files = list(analysis_dir.glob("AAPL_*.png"))
+    assert len(png_files) == 1
+    assert png_files[0].stat().st_size > 0
+
+
+@patch("demark.cli.YFinanceProvider.fetch_data")
+@patch("sys.argv", ["demark", "--ticker", "AAPL", "--period", "1mo", "--plot", "--no-save"])
+def test_cli_e2e_no_save_plot_writes_png_in_cwd_only(mock_fetch, tmp_path, monkeypatch):
+    mock_fetch.return_value = _ohlcv_frame()
+    monkeypatch.chdir(tmp_path)
+
+    cli.main()
+
+    assert not (tmp_path / "analysis").exists()
+    png_files = list(tmp_path.glob("AAPL_*.png"))
+    assert len(png_files) == 1
+    assert png_files[0].stat().st_size > 0

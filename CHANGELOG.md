@@ -41,6 +41,9 @@ All notable changes to this project are documented in this file.
   - Provider fetch failure prints error and aborts engine execution.
   - `save_to_csv` writes timestamped CSV output.
   - `plot_results` writes timestamped PNG output.
+- Added CLI end-to-end behavior coverage with real engine execution:
+  - Persist mode writes CSV/PNG under `analysis/`.
+  - `--no-save --plot` writes only PNG in current directory.
 
 ### Data Artifacts
 - Persisted latest analysis outputs for AAPL, CTRA, GOLD, INFY, INTC, NOK, and VIV (CSV/PNG where applicable).
