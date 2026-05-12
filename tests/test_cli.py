@@ -84,7 +84,44 @@ def test_cli_no_save_with_plot_skips_csv_only(
     cli.main()
 
     mock_save_to_csv.assert_not_called()
-    mock_plot_results.assert_called_once_with(results, "AAPL")
+    mock_plot_results.assert_called_once_with(results, "AAPL", output_mode="png")
+
+
+@patch("demark.cli.plot_results")
+@patch("demark.cli.save_to_csv")
+@patch("demark.cli.DeMarkEngine")
+@patch("demark.cli.YFinanceProvider")
+@patch(
+    "sys.argv",
+    [
+        "demark",
+        "--ticker",
+        "AAPL",
+        "--period",
+        "1mo",
+        "--plot",
+        "--plot-output-mode",
+        "both",
+        "--no-save",
+    ],
+)
+def test_cli_no_save_with_plot_uses_selected_output_mode(
+    mock_provider_cls,
+    mock_engine_cls,
+    mock_save_to_csv,
+    mock_plot_results,
+):
+    provider = mock_provider_cls.return_value
+    provider.fetch_data.return_value = pd.DataFrame({"Close": [100.0]})
+
+    engine = mock_engine_cls.return_value
+    results = _results_frame()
+    engine.run_all.return_value = results
+
+    cli.main()
+
+    mock_save_to_csv.assert_not_called()
+    mock_plot_results.assert_called_once_with(results, "AAPL", output_mode="both")
 
 
 @patch("demark.cli.plot_results")
@@ -195,6 +232,32 @@ def test_plot_results_writes_png_file(tmp_path):
     assert files[0].stat().st_size > 0
 
 
+def test_plot_results_writes_html_file(tmp_path):
+    df = _plot_frame()
+
+    cli.plot_results(df, "AAPL", str(tmp_path), output_mode="html")
+
+    html_files = list(tmp_path.glob("AAPL_*.html"))
+    png_files = list(tmp_path.glob("AAPL_*.png"))
+    assert len(html_files) == 1
+    assert len(png_files) == 0
+    content = html_files[0].read_text(encoding="utf-8")
+    assert "<html" in content.lower()
+    assert "plotly" in content.lower()
+
+
+def test_plot_results_writes_both_html_and_png_files(tmp_path):
+    df = _plot_frame()
+
+    cli.plot_results(df, "AAPL", str(tmp_path), output_mode="both")
+
+    html_files = list(tmp_path.glob("AAPL_*.html"))
+    png_files = list(tmp_path.glob("AAPL_*.png"))
+    assert len(html_files) == 1
+    assert len(png_files) == 1
+    assert png_files[0].stat().st_size > 0
+
+
 @patch("demark.cli.YFinanceProvider.fetch_data")
 @patch("sys.argv", ["demark", "--ticker", "AAPL", "--period", "1mo", "--plot"])
 def test_cli_e2e_persists_csv_and_plot(mock_fetch, tmp_path, monkeypatch):
@@ -212,6 +275,33 @@ def test_cli_e2e_persists_csv_and_plot(mock_fetch, tmp_path, monkeypatch):
 
 
 @patch("demark.cli.YFinanceProvider.fetch_data")
+@patch(
+    "sys.argv",
+    [
+        "demark",
+        "--ticker",
+        "AAPL",
+        "--period",
+        "1mo",
+        "--plot",
+        "--plot-output-mode",
+        "html",
+    ],
+)
+def test_cli_e2e_persists_html_only_when_selected(mock_fetch, tmp_path, monkeypatch):
+    mock_fetch.return_value = _ohlcv_frame()
+    monkeypatch.chdir(tmp_path)
+
+    cli.main()
+
+    analysis_dir = tmp_path / "analysis"
+    assert analysis_dir.exists()
+    assert len(list(analysis_dir.glob("AAPL_*.csv"))) == 1
+    assert len(list(analysis_dir.glob("AAPL_*.html"))) == 1
+    assert len(list(analysis_dir.glob("AAPL_*.png"))) == 0
+
+
+@patch("demark.cli.YFinanceProvider.fetch_data")
 @patch("sys.argv", ["demark", "--ticker", "AAPL", "--period", "1mo", "--plot", "--no-save"])
 def test_cli_e2e_no_save_plot_writes_png_in_cwd_only(mock_fetch, tmp_path, monkeypatch):
     mock_fetch.return_value = _ohlcv_frame()
@@ -223,3 +313,30 @@ def test_cli_e2e_no_save_plot_writes_png_in_cwd_only(mock_fetch, tmp_path, monke
     png_files = list(tmp_path.glob("AAPL_*.png"))
     assert len(png_files) == 1
     assert png_files[0].stat().st_size > 0
+
+
+@patch("demark.cli.YFinanceProvider.fetch_data")
+@patch(
+    "sys.argv",
+    [
+        "demark",
+        "--ticker",
+        "AAPL",
+        "--period",
+        "1mo",
+        "--plot",
+        "--plot-output-mode",
+        "html",
+        "--no-save",
+    ],
+)
+def test_cli_e2e_no_save_plot_writes_html_in_cwd_only(mock_fetch, tmp_path, monkeypatch):
+    mock_fetch.return_value = _ohlcv_frame()
+    monkeypatch.chdir(tmp_path)
+
+    cli.main()
+
+    assert not (tmp_path / "analysis").exists()
+    html_files = list(tmp_path.glob("AAPL_*.html"))
+    assert len(html_files) == 1
+    assert len(list(tmp_path.glob("AAPL_*.png"))) == 0
