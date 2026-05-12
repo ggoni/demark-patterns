@@ -21,6 +21,7 @@ All notable changes to this project are documented in this file.
 - Implemented recycle reset behavior for extended same-direction setups.
 - Expanded CLI action colorization branches to satisfy lint formatting rules.
 - Updated and archived OpenSpec change artifacts for TD logic/countdown compliance.
+- Aligned README feature and CLI documentation with current engine rules and `--no-save` behavior.
 
 ### Fixed
 - Fixed TDST mapping and recommendation signal behavior in engine logic.
@@ -33,6 +34,9 @@ All notable changes to this project are documented in this file.
 - Added delayed bar-13 qualification coverage for both directions:
   - First eligible bar can remain at 12.
   - A later eligible bar can complete countdown 13.
+- Added CLI persistence coverage for `--no-save` behavior:
+  - `--no-save` skips CSV persistence.
+  - `--plot --no-save` still renders plotting without writing analysis artifacts.
 
 ### Data Artifacts
 - Persisted latest analysis outputs for AAPL, CTRA, GOLD, INFY, INTC, NOK, and VIV (CSV/PNG where applicable).
