@@ -217,6 +217,87 @@ def test_sell_countdown_bar13_uses_high():
     )
 
 
+def test_buy_countdown_bar13_waits_then_later_qualifies():
+    """
+    If the first bar-13 candidate satisfies the counting condition but fails
+    the Low[13] <= Close[8] qualifier, the count must stay at 12 until a later
+    qualifying bar appears.
+    """
+    df = _make_buy_setup_df(n_extra=15)
+    engine = DeMarkEngine(df)
+    engine.calculate_setup()
+
+    bar8_idx = 20
+    buy_bar8_close = df.iloc[bar8_idx]['Close']
+    first_candidate_idx = 25
+    second_candidate_idx = 26
+
+    df_mod = df.copy()
+
+    # First candidate: counting condition passes, qualifier fails -> remain at 12.
+    df_mod.at[df_mod.index[first_candidate_idx], 'Close'] = buy_bar8_close + 0.5
+    df_mod.at[df_mod.index[first_candidate_idx], 'Low'] = buy_bar8_close + 0.25
+    df_mod.at[df_mod.index[first_candidate_idx - 2], 'Low'] = buy_bar8_close + 1.0
+
+    # Second candidate: counting condition passes again, qualifier now passes -> 13.
+    df_mod.at[df_mod.index[second_candidate_idx], 'Close'] = buy_bar8_close + 0.25
+    df_mod.at[df_mod.index[second_candidate_idx], 'Low'] = buy_bar8_close - 0.5
+    df_mod.at[df_mod.index[second_candidate_idx - 2], 'Low'] = buy_bar8_close + 1.0
+
+    engine2 = DeMarkEngine(df_mod)
+    engine2.calculate_setup()
+    engine2.calculate_countdown()
+    results = engine2.df
+
+    assert results.iloc[first_candidate_idx]['buy_countdown_count'] == 0
+    assert results.iloc[second_candidate_idx]['buy_countdown_count'] == 13
+
+
+def test_sell_countdown_bar13_waits_then_later_qualifies():
+    """
+    If the first sell bar-13 candidate satisfies the counting condition but
+    fails the High[13] >= Close[8] qualifier, the count must stay at 12 until
+    a later qualifying bar appears.
+    """
+    setup_closes = [100.0]*5 + [110.0 + i for i in range(9)]
+    last = setup_closes[-1]
+    extra_closes = [last + (i + 1.0) for i in range(15)]
+    closes = setup_closes + extra_closes
+
+    dates = pd.date_range("2023-01-01", periods=len(closes))
+    highs = [c + 1.0 for c in closes]
+    lows = [c - 1.0 for c in closes]
+    df = pd.DataFrame({"Close": closes, "Low": lows, "High": highs}, index=dates)
+
+    engine = DeMarkEngine(df)
+    engine.calculate_setup()
+
+    bar8_idx = 20
+    sell_bar8_close = df.iloc[bar8_idx]['Close']
+    first_candidate_idx = 25
+    second_candidate_idx = 26
+
+    df_mod = df.copy()
+
+    # First candidate: counting condition passes, qualifier fails -> remain at 12.
+    df_mod.at[df_mod.index[first_candidate_idx], 'Close'] = sell_bar8_close - 0.5
+    df_mod.at[df_mod.index[first_candidate_idx], 'High'] = sell_bar8_close - 0.25
+    df_mod.at[df_mod.index[first_candidate_idx - 2], 'High'] = sell_bar8_close - 1.0
+
+    # Second candidate: counting condition passes again, qualifier now passes -> 13.
+    df_mod.at[df_mod.index[second_candidate_idx], 'Close'] = sell_bar8_close - 0.25
+    df_mod.at[df_mod.index[second_candidate_idx], 'High'] = sell_bar8_close + 0.5
+    df_mod.at[df_mod.index[second_candidate_idx - 2], 'High'] = sell_bar8_close - 1.0
+
+    engine2 = DeMarkEngine(df_mod)
+    engine2.calculate_setup()
+    engine2.calculate_countdown()
+    results = engine2.df
+
+    assert results.iloc[first_candidate_idx]['sell_countdown_count'] == 0
+    assert results.iloc[second_candidate_idx]['sell_countdown_count'] == 13
+
+
 def test_recycle_columns_always_present():
     """Task 2.1 — buy_countdown_recycled and sell_countdown_recycled must exist."""
     df = _make_buy_setup_df(n_extra=5)
