@@ -105,24 +105,57 @@ class DeMarkEngine:
         
         self.df['buy_countdown_count'] = 0
         self.df['sell_countdown_count'] = 0
-        
+        self.df['buy_countdown_recycled'] = False
+        self.df['sell_countdown_recycled'] = False
+
         active_buy_countdown = False
         buy_count = 0
         buy_bar8_close = np.nan
-        
+        buy_ext_count = 0
+
         active_sell_countdown = False
         sell_count = 0
         sell_bar8_close = np.nan
-        
+        sell_ext_count = 0
+
         for i in range(len(self.df)):
+            # Recycle tracking: consecutive setup-qualifying bars while countdown is active.
+            if active_buy_countdown and i >= 4:
+                if close.iloc[i] < close.iloc[i-4]:
+                    buy_ext_count += 1
+                else:
+                    buy_ext_count = 0
+
+                if buy_ext_count > 18:
+                    self.df.at[self.df.index[i], 'buy_countdown_recycled'] = True
+                    active_buy_countdown = False
+                    buy_count = 0
+                    buy_bar8_close = np.nan
+                    buy_ext_count = 0
+
+            if active_sell_countdown and i >= 4:
+                if close.iloc[i] > close.iloc[i-4]:
+                    sell_ext_count += 1
+                else:
+                    sell_ext_count = 0
+
+                if sell_ext_count > 18:
+                    self.df.at[self.df.index[i], 'sell_countdown_recycled'] = True
+                    active_sell_countdown = False
+                    sell_count = 0
+                    sell_bar8_close = np.nan
+                    sell_ext_count = 0
+
             # Start/Reset on Setup completion
             if self.df.iloc[i]['buy_setup_count'] == 9:
                 active_buy_countdown = True
                 buy_count = 0
-            
+                buy_ext_count = 0
+
             if self.df.iloc[i]['sell_setup_count'] == 9:
                 active_sell_countdown = True
                 sell_count = 0
+                sell_ext_count = 0
                 
             # Process Buy Countdown
             if active_buy_countdown and i >= 2:
@@ -133,8 +166,8 @@ class DeMarkEngine:
                             buy_bar8_close = close.iloc[i]
                         self.df.at[self.df.index[i], 'buy_countdown_count'] = buy_count
                     else:
-                        # Qualification for bar 13
-                        if close.iloc[i] <= buy_bar8_close:
+                        # Qualification for bar 13: Low[13] <= Close[8]
+                        if low.iloc[i] <= buy_bar8_close:
                             buy_count = 13
                             self.df.at[self.df.index[i], 'buy_countdown_count'] = 13
                             active_buy_countdown = False
@@ -149,8 +182,8 @@ class DeMarkEngine:
                             sell_bar8_close = close.iloc[i]
                         self.df.at[self.df.index[i], 'sell_countdown_count'] = sell_count
                     else:
-                        # Qualification for bar 13
-                        if close.iloc[i] >= sell_bar8_close:
+                        # Qualification for bar 13: High[13] >= Close[8]
+                        if high.iloc[i] >= sell_bar8_close:
                             sell_count = 13
                             self.df.at[self.df.index[i], 'sell_countdown_count'] = 13
                             active_sell_countdown = False
