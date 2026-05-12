@@ -334,3 +334,59 @@ def test_sell_countdown_recycle_threshold_exactly_18_does_not_fire():
     assert not engine.df['sell_countdown_recycled'].any(), (
         "Sell recycle fired at exactly 18 extension bars, but rule requires > 18."
     )
+
+
+def test_buy_countdown_recycle_threshold_19_does_fire():
+    """
+    Recycle should fire once the extension count exceeds 18.
+    Buy-side positive boundary at 19 bars.
+    """
+    n = 24  # indices 0..23
+    dates = pd.date_range("2023-01-01", periods=n)
+
+    closes = [100.0 - i for i in range(n)]
+    lows = [c - 100.0 for c in closes]
+    highs = [c + 1.0 for c in closes]
+
+    df = pd.DataFrame({"Close": closes, "Low": lows, "High": highs}, index=dates)
+    engine = DeMarkEngine(df)
+
+    engine.df['buy_setup_count'] = 0
+    engine.df['sell_setup_count'] = 0
+    engine.df.at[engine.df.index[4], 'buy_setup_count'] = 9
+
+    engine.calculate_countdown()
+
+    assert engine.df['buy_countdown_recycled'].any(), (
+        "Buy recycle did not fire at 19 extension bars, but rule requires recycle at > 18."
+    )
+    recycle_idx = engine.df.index[engine.df['buy_countdown_recycled']].tolist()[0]
+    assert recycle_idx == engine.df.index[23]
+
+
+def test_sell_countdown_recycle_threshold_19_does_fire():
+    """
+    Recycle should fire once the extension count exceeds 18.
+    Sell-side positive boundary at 19 bars.
+    """
+    n = 24  # indices 0..23
+    dates = pd.date_range("2023-01-01", periods=n)
+
+    closes = [100.0 + i for i in range(n)]
+    highs = [c + 100.0 for c in closes]
+    lows = [c - 1.0 for c in closes]
+
+    df = pd.DataFrame({"Close": closes, "Low": lows, "High": highs}, index=dates)
+    engine = DeMarkEngine(df)
+
+    engine.df['buy_setup_count'] = 0
+    engine.df['sell_setup_count'] = 0
+    engine.df.at[engine.df.index[4], 'sell_setup_count'] = 9
+
+    engine.calculate_countdown()
+
+    assert engine.df['sell_countdown_recycled'].any(), (
+        "Sell recycle did not fire at 19 extension bars, but rule requires recycle at > 18."
+    )
+    recycle_idx = engine.df.index[engine.df['sell_countdown_recycled']].tolist()[0]
+    assert recycle_idx == engine.df.index[23]
