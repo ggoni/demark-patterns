@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from demark.providers import YFinanceProvider
 from demark.engine import DeMarkEngine
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 def main():
     parser = argparse.ArgumentParser(description="DeMark Indicators Analysis Tool")
@@ -11,6 +11,12 @@ def main():
     parser.add_argument("--interval", type=str, default="1d", help="Data interval (1m, 1h, 1d, 1wk)")
     parser.add_argument("--period", type=str, default="1y", help="Data period (1mo, 6mo, 1y, max)")
     parser.add_argument("--plot", action="store_true", help="Plot the results")
+    parser.add_argument(
+        "--plot-output-mode",
+        choices=["png", "html", "both"],
+        default="png",
+        help="Plot output mode when --plot is used: png, html, or both",
+    )
     parser.add_argument("--no-save", action="store_true", help="Do not save CSV/plot files to disk")
     parser.add_argument(
         "--debug-setups",
@@ -89,9 +95,9 @@ def main():
         save_to_csv(results, args.ticker, output_dir)
         
         if args.plot:
-            plot_results(results, args.ticker, output_dir)
+            plot_results(results, args.ticker, output_dir, output_mode=args.plot_output_mode)
     elif args.plot:
-        plot_results(results, args.ticker)
+        plot_results(results, args.ticker, output_mode=args.plot_output_mode)
 
 def save_to_csv(df, ticker, output_dir):
     date_str = datetime.now().strftime('%y%m%d')
@@ -100,45 +106,159 @@ def save_to_csv(df, ticker, output_dir):
     df.to_csv(path)
     print(f"Analysis persisted to {path}")
 
-def plot_results(df, ticker, output_dir="."):
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True, gridspec_kw={'height_ratios': [3, 1]})
-    
-    # Top plot: Price and TDST
-    ax1.plot(df.index, df['Close'], label='Close', color='black', alpha=0.6)
-    if 'tdst_support' in df.columns:
-        ax1.plot(df.index, df['tdst_support'], label='TDST Support', color='green', linestyle='--')
-    if 'tdst_resistance' in df.columns:
-        ax1.plot(df.index, df['tdst_resistance'], label='TDST Resist', color='red', linestyle='--')
+def _build_plotly_figure(df, ticker):
+    fig = go.Figure()
 
-    # Bollinger Bands overlay
-    if 'bb_upper' in df.columns:
-        ax1.plot(df.index, df['bb_upper'],   color='steelblue', linewidth=0.8, linestyle='--', label='BB Upper')
-        ax1.plot(df.index, df['bb_middle'],  color='steelblue', linewidth=1.0, label='BB SMA-20')
-        ax1.plot(df.index, df['bb_lower'],   color='steelblue', linewidth=0.8, linestyle='--', label='BB Lower')
-        ax1.fill_between(df.index, df['bb_upper'], df['bb_lower'], alpha=0.08, color='steelblue')
+    # Top panel traces: price, TDST, and optional Bollinger Bands.
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df["Close"],
+            mode="lines",
+            name="Close",
+            line={"color": "black", "width": 1.5},
+            opacity=0.7,
+            yaxis="y1",
+        )
+    )
 
-    # Annotate counts
-    for i in range(len(df)):
-        if df.iloc[i]['buy_setup_count'] > 0:
-            ax1.annotate(str(int(df.iloc[i]['buy_setup_count'])), (df.index[i], df.iloc[i]['Low']), 
-                        textcoords="offset points", xytext=(0,-10), ha='center', color='green', fontsize=8)
-        if df.iloc[i]['sell_setup_count'] > 0:
-            ax1.annotate(str(int(df.iloc[i]['sell_setup_count'])), (df.index[i], df.iloc[i]['High']), 
-                        textcoords="offset points", xytext=(0,10), ha='center', color='red', fontsize=8)
-                        
-    ax1.set_title(f"{ticker} DeMark Analysis")
-    ax1.legend()
-    
-    # Bottom plot: Countdown
-    ax2.bar(df.index, df['buy_countdown_count'], color='green', alpha=0.3, label='Buy CD')
-    ax2.bar(df.index, df['sell_countdown_count'], color='red', alpha=0.3, label='Sell CD')
-    ax2.set_ylabel("Countdown")
-    
-    plt.tight_layout()
-    date_str  = datetime.now().strftime('%y%m%d')
-    plot_path = os.path.join(output_dir, f"{ticker}_{date_str}.png")
-    plt.savefig(plot_path)
-    print(f"Plot saved to {plot_path}")
+    if "tdst_support" in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df["tdst_support"],
+                mode="lines",
+                name="TDST Support",
+                line={"color": "green", "dash": "dash"},
+                yaxis="y1",
+            )
+        )
+
+    if "tdst_resistance" in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df["tdst_resistance"],
+                mode="lines",
+                name="TDST Resist",
+                line={"color": "red", "dash": "dash"},
+                yaxis="y1",
+            )
+        )
+
+    if {"bb_upper", "bb_middle", "bb_lower"}.issubset(df.columns):
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df["bb_upper"],
+                mode="lines",
+                name="BB Upper",
+                line={"color": "steelblue", "dash": "dash", "width": 1},
+                yaxis="y1",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df["bb_lower"],
+                mode="lines",
+                name="BB Lower",
+                line={"color": "steelblue", "dash": "dash", "width": 1},
+                fill="tonexty",
+                fillcolor="rgba(70,130,180,0.08)",
+                yaxis="y1",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df["bb_middle"],
+                mode="lines",
+                name="BB SMA-20",
+                line={"color": "steelblue", "width": 1.2},
+                yaxis="y1",
+            )
+        )
+
+    # Setup annotations near highs/lows.
+    if {"buy_setup_count", "Low"}.issubset(df.columns):
+        buy_mask = df["buy_setup_count"] > 0
+        if buy_mask.any():
+            fig.add_trace(
+                go.Scatter(
+                    x=df.index[buy_mask],
+                    y=df.loc[buy_mask, "Low"],
+                    mode="text",
+                    text=df.loc[buy_mask, "buy_setup_count"].astype(int).astype(str),
+                    textposition="bottom center",
+                    textfont={"color": "green", "size": 10},
+                    name="Buy Setup Count",
+                    yaxis="y1",
+                )
+            )
+
+    if {"sell_setup_count", "High"}.issubset(df.columns):
+        sell_mask = df["sell_setup_count"] > 0
+        if sell_mask.any():
+            fig.add_trace(
+                go.Scatter(
+                    x=df.index[sell_mask],
+                    y=df.loc[sell_mask, "High"],
+                    mode="text",
+                    text=df.loc[sell_mask, "sell_setup_count"].astype(int).astype(str),
+                    textposition="top center",
+                    textfont={"color": "red", "size": 10},
+                    name="Sell Setup Count",
+                    yaxis="y1",
+                )
+            )
+
+    # Bottom panel: countdown bars.
+    fig.add_trace(
+        go.Bar(
+            x=df.index,
+            y=df.get("buy_countdown_count", 0),
+            name="Buy CD",
+            marker_color="rgba(0,128,0,0.35)",
+            yaxis="y2",
+        )
+    )
+    fig.add_trace(
+        go.Bar(
+            x=df.index,
+            y=df.get("sell_countdown_count", 0),
+            name="Sell CD",
+            marker_color="rgba(255,0,0,0.35)",
+            yaxis="y2",
+        )
+    )
+
+    fig.update_layout(
+        title=f"{ticker} DeMark Analysis",
+        barmode="overlay",
+        hovermode="x unified",
+        xaxis={"domain": [0.0, 1.0], "anchor": "y1"},
+        yaxis={"domain": [0.28, 1.0], "title": "Price"},
+        yaxis2={"domain": [0.0, 0.22], "title": "Countdown"},
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "x": 0},
+        margin={"l": 50, "r": 30, "t": 70, "b": 40},
+    )
+    return fig
+
+
+def plot_results(df, ticker, output_dir=".", output_mode="png"):
+    fig = _build_plotly_figure(df, ticker)
+    date_str = datetime.now().strftime("%y%m%d")
+
+    if output_mode in {"html", "both"}:
+        html_path = os.path.join(output_dir, f"{ticker}_{date_str}.html")
+        fig.write_html(html_path, include_plotlyjs=True, full_html=True)
+        print(f"Plot saved to {html_path}")
+
+    if output_mode in {"png", "both"}:
+        png_path = os.path.join(output_dir, f"{ticker}_{date_str}.png")
+        fig.write_image(png_path)
+        print(f"Plot saved to {png_path}")
 
 
 def print_setup_diagnostics(results):
