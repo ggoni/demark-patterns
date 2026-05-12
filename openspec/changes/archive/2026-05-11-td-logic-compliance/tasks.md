@@ -1,0 +1,6 @@
+- [ ] Implement Price Flip requirement in `calculate_setup`
+- [ ] Implement Perfection logic in `calculate_setup`
+- [ ] Correct TDST calculation to use Bar 1 in `calculate_tdst`
+- [ ] Implement Countdown Qualification (Bar 13 vs Bar 8) in `calculate_countdown`
+- [ ] Update `tests/test_engine.py` to match new logic
+- [ ] Verify fix with `uv run scratch/audit_logic.py`
