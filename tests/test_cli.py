@@ -21,6 +21,23 @@ def _results_frame():
     )
 
 
+def _results_frame_with_setup_nines():
+    index = pd.date_range("2023-01-01", periods=4)
+    return pd.DataFrame(
+        {
+            "Close": [100.0, 101.0, 102.0, 103.0],
+            "buy_setup_count": [0, 9, 0, 0],
+            "sell_setup_count": [0, 0, 9, 0],
+            "buy_countdown_count": [0, 0, 0, 0],
+            "sell_countdown_count": [0, 0, 0, 0],
+            "tdst_support": [99.0, 99.0, 99.0, 99.0],
+            "tdst_resistance": [104.0, 104.0, 104.0, 104.0],
+            "recommendation": ["HOLD", "BUY", "SELL", "HOLD"],
+        },
+        index=index,
+    )
+
+
 @patch("demark.cli.plot_results")
 @patch("demark.cli.save_to_csv")
 @patch("demark.cli.DeMarkEngine")
@@ -68,6 +85,43 @@ def test_cli_no_save_with_plot_skips_csv_only(
 
     mock_save_to_csv.assert_not_called()
     mock_plot_results.assert_called_once_with(results, "AAPL")
+
+
+@patch("demark.cli.plot_results")
+@patch("demark.cli.save_to_csv")
+@patch("demark.cli.DeMarkEngine")
+@patch("demark.cli.YFinanceProvider")
+@patch("sys.argv", ["demark", "--ticker", "AAPL", "--period", "1mo", "--no-save", "--debug-setups"])
+def test_cli_debug_setups_explains_missing_support(
+    mock_provider_cls,
+    mock_engine_cls,
+    mock_save_to_csv,
+    mock_plot_results,
+    capsys,
+):
+    provider = mock_provider_cls.return_value
+    provider.fetch_data.return_value = pd.DataFrame({"Close": [100.0]})
+
+    engine = mock_engine_cls.return_value
+    engine.run_all.return_value = _results_frame()
+
+    cli.main()
+
+    out = capsys.readouterr().out
+    assert "Setup diagnostics:" in out
+    assert "Sell Setup 9 completions: 0" in out
+    assert "TDST Support remains NaN because no Sell Setup 9 completed in this window." in out
+    mock_save_to_csv.assert_not_called()
+    mock_plot_results.assert_not_called()
+
+
+def test_print_setup_diagnostics_reports_completed_setups(capsys):
+    cli.print_setup_diagnostics(_results_frame_with_setup_nines())
+    out = capsys.readouterr().out
+    assert "Buy Setup 9 completions: 1" in out
+    assert "Sell Setup 9 completions: 1" in out
+    assert "Latest Buy Setup 9:" in out
+    assert "Latest Sell Setup 9:" in out
 
 
 @patch("demark.cli.DeMarkEngine")

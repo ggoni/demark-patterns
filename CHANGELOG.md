@@ -22,6 +22,7 @@ All notable changes to this project are documented in this file.
 - Expanded CLI action colorization branches to satisfy lint formatting rules.
 - Updated and archived OpenSpec change artifacts for TD logic/countdown compliance.
 - Aligned README feature and CLI documentation with current engine rules and `--no-save` behavior.
+- Added clear signal-rule documentation in README, including a Mermaid decision tree.
 
 ### Fixed
 - Fixed TDST mapping and recommendation signal behavior in engine logic.
@@ -44,6 +45,9 @@ All notable changes to this project are documented in this file.
 - Added CLI end-to-end behavior coverage with real engine execution:
   - Persist mode writes CSV/PNG under `analysis/`.
   - `--no-save --plot` writes only PNG in current directory.
+- Added CLI setup diagnostics support:
+  - New `--debug-setups` flag prints setup-9 counts and latest setup-9 dates.
+  - Explicitly explains why TDST support/resistance can remain `NaN` in a selected window.
 
 ### Data Artifacts
 - Persisted latest analysis outputs for AAPL, CTRA, GOLD, INFY, INTC, NOK, and VIV (CSV/PNG where applicable).

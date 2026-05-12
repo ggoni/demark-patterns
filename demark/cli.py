@@ -12,6 +12,11 @@ def main():
     parser.add_argument("--period", type=str, default="1y", help="Data period (1mo, 6mo, 1y, max)")
     parser.add_argument("--plot", action="store_true", help="Plot the results")
     parser.add_argument("--no-save", action="store_true", help="Do not save CSV/plot files to disk")
+    parser.add_argument(
+        "--debug-setups",
+        action="store_true",
+        help="Print setup diagnostics to explain TDST support/resistance availability",
+    )
     
     args = parser.parse_args()
     
@@ -74,6 +79,9 @@ def main():
     print(f"  RECOMMENDATION: {color}{last_rec}{RESET}")
     print(f"{'='*40}")
 
+    if args.debug_setups:
+        print_setup_diagnostics(results)
+
     if not args.no_save:
         output_dir = "analysis"
         os.makedirs(output_dir, exist_ok=True)
@@ -131,6 +139,25 @@ def plot_results(df, ticker, output_dir="."):
     plot_path = os.path.join(output_dir, f"{ticker}_{date_str}.png")
     plt.savefig(plot_path)
     print(f"Plot saved to {plot_path}")
+
+
+def print_setup_diagnostics(results):
+    buy_9_idx = results.index[results['buy_setup_count'] == 9]
+    sell_9_idx = results.index[results['sell_setup_count'] == 9]
+
+    print("\nSetup diagnostics:")
+    print(f"- Buy Setup 9 completions: {len(buy_9_idx)}")
+    print(f"- Sell Setup 9 completions: {len(sell_9_idx)}")
+
+    if len(buy_9_idx) > 0:
+        print(f"- Latest Buy Setup 9: {buy_9_idx[-1]}")
+    if len(sell_9_idx) > 0:
+        print(f"- Latest Sell Setup 9: {sell_9_idx[-1]}")
+    else:
+        print("- TDST Support remains NaN because no Sell Setup 9 completed in this window.")
+
+    if len(buy_9_idx) == 0:
+        print("- TDST Resistance remains NaN because no Buy Setup 9 completed in this window.")
 
 if __name__ == "__main__":
     main()
