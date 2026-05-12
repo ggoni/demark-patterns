@@ -52,8 +52,10 @@ def main():
     RESET  = '\033[0m'
 
     def colorize(val):
-        if val == 'BUY':  return f"{GREEN}{val}{RESET}"
-        if val == 'SELL': return f"{RED}{val}{RESET}"
+        if val == 'BUY':
+            return f"{GREEN}{val}{RESET}"
+        if val == 'SELL':
+            return f"{RED}{val}{RESET}"
         return f"{YELLOW}{val}{RESET}"
 
     # Print header manually so we can colour the Action column
