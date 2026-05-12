@@ -37,6 +37,10 @@ All notable changes to this project are documented in this file.
 - Added CLI persistence coverage for `--no-save` behavior:
   - `--no-save` skips CSV persistence.
   - `--plot --no-save` still renders plotting without writing analysis artifacts.
+- Added CLI error-path and helper I/O coverage:
+  - Provider fetch failure prints error and aborts engine execution.
+  - `save_to_csv` writes timestamped CSV output.
+  - `plot_results` writes timestamped PNG output.
 
 ### Data Artifacts
 - Persisted latest analysis outputs for AAPL, CTRA, GOLD, INFY, INTC, NOK, and VIV (CSV/PNG where applicable).
