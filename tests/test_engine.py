@@ -303,3 +303,34 @@ def test_buy_countdown_recycle_threshold_exactly_18_does_not_fire():
     assert not engine.df['buy_countdown_recycled'].any(), (
         "Recycle fired at exactly 18 extension bars, but rule requires > 18."
     )
+
+
+def test_sell_countdown_recycle_threshold_exactly_18_does_not_fire():
+    """
+    Recycle should trigger only when extension count is > 18, not at 18.
+    Sell-side symmetric boundary.
+    """
+    n = 23  # indices 0..22
+    dates = pd.date_range("2023-01-01", periods=n)
+
+    # Strictly ascending closes so close[i] > close[i-4] is always true for i >= 4.
+    closes = [100.0 + i for i in range(n)]
+
+    # Keep sell countdown counting condition false so countdown doesn't complete first:
+    # sell count needs close[i] >= high[i-2]. With very high highs, this is false.
+    highs = [c + 100.0 for c in closes]
+    lows = [c - 1.0 for c in closes]
+
+    df = pd.DataFrame({"Close": closes, "Low": lows, "High": highs}, index=dates)
+    engine = DeMarkEngine(df)
+
+    # Activate sell countdown at i=4, then 18 consecutive extension bars (i=5..22).
+    engine.df['buy_setup_count'] = 0
+    engine.df['sell_setup_count'] = 0
+    engine.df.at[engine.df.index[4], 'sell_setup_count'] = 9
+
+    engine.calculate_countdown()
+
+    assert not engine.df['sell_countdown_recycled'].any(), (
+        "Sell recycle fired at exactly 18 extension bars, but rule requires > 18."
+    )
