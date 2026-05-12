@@ -15,6 +15,7 @@ A robust technical analysis engine that implements Tom DeMark’s Sequential and
   - **Volatility Filtering**: Overbought/Oversold detection using Bollinger Bands.
   - **Trend Breakouts**: Event-driven alerts for TDST Support/Resistance crossovers.
 - **Interactive CLI**: Fetch data for any ticker and visualize the results.
+- **Browser-Compliant Plot Artifacts**: Generate Plotly HTML outputs for native browser interactivity.
 
 ## Installation
 
@@ -31,6 +32,8 @@ Run the analysis for any ticker:
 
 ```bash
 uv run demark --ticker NVDA --interval 1d --period 1y --plot
+uv run demark --ticker NVDA --interval 1d --period 1y --plot --plot-output-mode both
+uv run demark --ticker AAPL --interval 1d --period 1y --plot --plot-output-mode html
 uv run demark --ticker AAPL --period 1mo --no-save
 uv run demark --ticker AAPL --interval 1d --period 1y --debug-setups
 ```
@@ -40,9 +43,18 @@ uv run demark --ticker AAPL --interval 1d --period 1y --debug-setups
 - `--ticker`: The stock ticker symbol (e.g., AAPL, BTC-USD, NVDA).
 - `--interval`: Data interval (1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo).
 - `--period`: Data period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max).
-- `--plot`: Optional flag to generate a `demark_analysis.png` visualization.
+- `--plot`: Optional flag to generate plot artifacts.
+- `--plot-output-mode`: Output mode used with `--plot` (`png`, `html`, `both`). Default is `png`.
 - `--no-save`: Optional flag to skip writing CSV and plot artifacts to `analysis/`.
 - `--debug-setups`: Optional flag to print setup completion diagnostics (useful when TDST support/resistance is `NaN`).
+
+### Plot Output Artifacts
+
+- `png`: Writes a static PNG chart.
+- `html`: Writes a browser-compliant Plotly HTML chart (interactive zoom/hover, standalone file).
+- `both`: Writes both PNG and HTML artifacts for the same run.
+
+HTML output is generated as a standalone file so it can be opened directly in modern browsers without a Python runtime.
 
 ## Project Structure
 
