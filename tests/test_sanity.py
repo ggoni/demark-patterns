@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import pytest
 
 def test_sanity():
     assert True
