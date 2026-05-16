@@ -28,19 +28,24 @@ uv pip install -r requirements.txt
 
 ## Usage
 
-Run the analysis for any ticker:
-
+Run the analysis for any ticker or scan a list:
 ```bash
+# Single ticker analysis
 uv run demark --ticker NVDA --interval 1d --period 1y --plot
 uv run demark --ticker NVDA --interval 1d --period 1y --plot --plot-output-mode both
 uv run demark --ticker AAPL --interval 1d --period 1y --plot --plot-output-mode html
 uv run demark --ticker AAPL --period 1mo --no-save
 uv run demark --ticker AAPL --interval 1d --period 1y --debug-setups
+
+# Bulk scan mode (reads from a file, returns only BUY/SELL signals)
+uv run demark --scan line.txt
+uv run demark --scan watchlist.txt --interval 1h --period 1mo
 ```
 
 ### CLI Arguments
 
 - `--ticker`: The stock ticker symbol (e.g., AAPL, BTC-USD, NVDA).
+- `--scan`: Path to a text file with a list of tickers (space-separated or line-separated) to analyze. Returns only those with `BUY` or `SELL` signals.
 - `--interval`: Data interval (1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo).
 - `--period`: Data period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max).
 - `--plot`: Optional flag to generate plot artifacts.
