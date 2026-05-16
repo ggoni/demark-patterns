@@ -31,6 +31,7 @@ def main():
         action="store_true",
         help="Print setup diagnostics to explain TDST support/resistance availability",
     )
+    parser.add_argument("--output", type=str, help="Custom output path for scan results CSV")
     
     args = parser.parse_args()
     
@@ -130,12 +131,23 @@ def run_scanner(args):
         print(f"Error loading scanner file: {e}")
         return
 
-    print(f"Scanning {len(tickers)} tickers from {args.scan}...")
+    total = len(tickers)
+    print(f"Scanning {total} tickers from {args.scan}...")
+    print(f"{'Ticker':<10} {'Price':<10} {'Support':<10} {'Resist':<10} {'Action'}")
+    print("-" * 70)
     
     signals = []
     provider = YFinanceProvider()
     
-    for ticker in tickers:
+    # ANSI color helpers
+    GREEN  = '\033[92m'
+    RED    = '\033[91m'
+    RESET  = '\033[0m'
+
+    for i, ticker in enumerate(tickers, 1):
+        if i % 100 == 0:
+            print(f"Progress: {i}/{total} tickers scanned...", end='\r')
+            
         try:
             df = provider.fetch_data(ticker, interval=args.interval, period=args.period)
             engine = DeMarkEngine(df)
@@ -145,38 +157,46 @@ def run_scanner(args):
             rec = last_row['recommendation']
             
             if rec.startswith("BUY") or rec.startswith("SELL"):
-                signals.append({
+                price = last_row['Close']
+                support = last_row['tdst_support'] if not pd.isna(last_row['tdst_support']) else None
+                resist = last_row['tdst_resistance'] if not pd.isna(last_row['tdst_resistance']) else None
+                
+                signal_data = {
                     'Ticker': ticker,
-                    'Price': f"{last_row['Close']:.2f}",
-                    'Support': f"{last_row['tdst_support']:.2f}" if not pd.isna(last_row['tdst_support']) else "N/A",
-                    'Resist': f"{last_row['tdst_resistance']:.2f}" if not pd.isna(last_row['tdst_resistance']) else "N/A",
+                    'Price': f"{price:.2f}",
+                    'Support': f"{support:.2f}" if support is not None else "N/A",
+                    'Resist': f"{resist:.2f}" if resist is not None else "N/A",
                     'Action': rec
-                })
+                }
+                signals.append(signal_data)
+                
+                color = GREEN if rec.startswith("BUY") else RED
+                action_colored = f"{color}{rec}{RESET}"
+                
+                print(" " * 50, end='\r')
+                print(f"{ticker:<10} {signal_data['Price']:<10} {signal_data['Support']:<10} {signal_data['Resist']:<10} {action_colored}")
         except Exception:
-            # Skip invalid tickers or data errors silently to keep scanner flow
             continue
 
+    print("-" * 70)
+    
     if not signals:
-        print("\nNo BUY or SELL signals found in the scan.")
+        print(f"\nScan complete. No BUY or SELL signals found among {total} tickers.")
     else:
-        # Sort signals so BUYs are together, then SELLs
-        signals.sort(key=lambda x: x['Action'])
+        print(f"\nScan complete. Found {len(signals)} signals among {total} tickers.")
         
-        print(f"\nScan complete. Found {len(signals)} signals:")
-        header = f"{'Ticker':<10} {'Price':<10} {'Support':<10} {'Resist':<10} {'Action'}"
-        print("-" * 70)
-        print(header)
-        print("-" * 70)
+        # Save to file
+        output_dir = "analysis"
+        os.makedirs(output_dir, exist_ok=True)
         
-        GREEN  = '\033[92m'
-        RED    = '\033[91m'
-        RESET  = '\033[0m'
-        
-        for s in signals:
-            color = GREEN if s['Action'].startswith("BUY") else RED
-            action_colored = f"{color}{s['Action']}{RESET}"
-            print(f"{s['Ticker']:<10} {s['Price']:<10} {s['Support']:<10} {s['Resist']:<10} {action_colored}")
-        print("-" * 70)
+        if args.output:
+            out_path = args.output
+        else:
+            date_str = datetime.now().strftime('%y%m%d_%H%M%S')
+            out_path = os.path.join(output_dir, f"scan_results_{date_str}.csv")
+            
+        pd.DataFrame(signals).to_csv(out_path, index=False)
+        print(f"Results saved to {out_path}")
 
 def save_to_csv(df, ticker, output_dir):
     date_str = datetime.now().strftime('%y%m%d')

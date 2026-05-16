@@ -46,6 +46,7 @@ uv run demark --scan watchlist.txt --interval 1h --period 1mo
 
 - `--ticker`: The stock ticker symbol (e.g., AAPL, BTC-USD, NVDA).
 - `--scan`: Path to a text file with a list of tickers (space-separated or line-separated) to analyze. Returns only those with `BUY` or `SELL` signals.
+- `--output`: Optional. Custom output path for scan results CSV. If not provided, saves to `analysis/scan_results_<timestamp>.csv`.
 - `--interval`: Data interval (1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo).
 - `--period`: Data period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max).
 - `--plot`: Optional flag to generate plot artifacts.
