@@ -4,10 +4,18 @@ from datetime import datetime
 from demark.providers import YFinanceProvider
 from demark.engine import DeMarkEngine
 import plotly.graph_objects as go
+import pandas as pd
+
+
+def _plot_x_values(values):
+    if hasattr(values, "to_pydatetime"):
+        return values.to_pydatetime().tolist()
+    return values
 
 def main():
     parser = argparse.ArgumentParser(description="DeMark Indicators Analysis Tool")
-    parser.add_argument("--ticker", type=str, required=True, help="Stock ticker (e.g., AAPL)")
+    parser.add_argument("--ticker", type=str, help="Stock ticker (e.g., AAPL)")
+    parser.add_argument("--scan", type=str, help="Path to a text file with a list of tickers to scan")
     parser.add_argument("--interval", type=str, default="1d", help="Data interval (1m, 1h, 1d, 1wk)")
     parser.add_argument("--period", type=str, default="1y", help="Data period (1mo, 6mo, 1y, max)")
     parser.add_argument("--plot", action="store_true", help="Plot the results")
@@ -26,6 +34,13 @@ def main():
     
     args = parser.parse_args()
     
+    if not args.ticker and not args.scan:
+        parser.error("Either --ticker or --scan must be provided")
+
+    if args.scan:
+        run_scanner(args)
+        return
+
     print(f"Fetching data for {args.ticker}...")
     provider = YFinanceProvider()
     try:
@@ -99,6 +114,70 @@ def main():
     elif args.plot:
         plot_results(results, args.ticker, output_mode=args.plot_output_mode)
 
+def load_tickers_from_file(file_path):
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Scanner file not found: {file_path}")
+    with open(file_path, "r") as f:
+        content = f.read()
+    # Split by whitespace (covers spaces, tabs, newlines)
+    tickers = [t.strip() for t in content.split() if t.strip()]
+    return sorted(list(set(tickers)))
+
+def run_scanner(args):
+    try:
+        tickers = load_tickers_from_file(args.scan)
+    except Exception as e:
+        print(f"Error loading scanner file: {e}")
+        return
+
+    print(f"Scanning {len(tickers)} tickers from {args.scan}...")
+    
+    signals = []
+    provider = YFinanceProvider()
+    
+    for ticker in tickers:
+        try:
+            df = provider.fetch_data(ticker, interval=args.interval, period=args.period)
+            engine = DeMarkEngine(df)
+            results = engine.run_all()
+            
+            last_row = results.iloc[-1]
+            rec = last_row['recommendation']
+            
+            if rec.startswith("BUY") or rec.startswith("SELL"):
+                signals.append({
+                    'Ticker': ticker,
+                    'Price': f"{last_row['Close']:.2f}",
+                    'Support': f"{last_row['tdst_support']:.2f}" if not pd.isna(last_row['tdst_support']) else "N/A",
+                    'Resist': f"{last_row['tdst_resistance']:.2f}" if not pd.isna(last_row['tdst_resistance']) else "N/A",
+                    'Action': rec
+                })
+        except Exception:
+            # Skip invalid tickers or data errors silently to keep scanner flow
+            continue
+
+    if not signals:
+        print("\nNo BUY or SELL signals found in the scan.")
+    else:
+        # Sort signals so BUYs are together, then SELLs
+        signals.sort(key=lambda x: x['Action'])
+        
+        print(f"\nScan complete. Found {len(signals)} signals:")
+        header = f"{'Ticker':<10} {'Price':<10} {'Support':<10} {'Resist':<10} {'Action'}"
+        print("-" * 70)
+        print(header)
+        print("-" * 70)
+        
+        GREEN  = '\033[92m'
+        RED    = '\033[91m'
+        RESET  = '\033[0m'
+        
+        for s in signals:
+            color = GREEN if s['Action'].startswith("BUY") else RED
+            action_colored = f"{color}{s['Action']}{RESET}"
+            print(f"{s['Ticker']:<10} {s['Price']:<10} {s['Support']:<10} {s['Resist']:<10} {action_colored}")
+        print("-" * 70)
+
 def save_to_csv(df, ticker, output_dir):
     date_str = datetime.now().strftime('%y%m%d')
     filename = f"{ticker}_{date_str}.csv"
@@ -108,11 +187,12 @@ def save_to_csv(df, ticker, output_dir):
 
 def _build_plotly_figure(df, ticker):
     fig = go.Figure()
+    x_values = _plot_x_values(df.index)
 
     # Top panel traces: price, TDST, and optional Bollinger Bands.
     fig.add_trace(
         go.Scatter(
-            x=df.index,
+            x=x_values,
             y=df["Close"],
             mode="lines",
             name="Close",
@@ -125,7 +205,7 @@ def _build_plotly_figure(df, ticker):
     if "tdst_support" in df.columns:
         fig.add_trace(
             go.Scatter(
-                x=df.index,
+                x=x_values,
                 y=df["tdst_support"],
                 mode="lines",
                 name="TDST Support",
@@ -137,7 +217,7 @@ def _build_plotly_figure(df, ticker):
     if "tdst_resistance" in df.columns:
         fig.add_trace(
             go.Scatter(
-                x=df.index,
+                x=x_values,
                 y=df["tdst_resistance"],
                 mode="lines",
                 name="TDST Resist",
@@ -149,7 +229,7 @@ def _build_plotly_figure(df, ticker):
     if {"bb_upper", "bb_middle", "bb_lower"}.issubset(df.columns):
         fig.add_trace(
             go.Scatter(
-                x=df.index,
+                x=x_values,
                 y=df["bb_upper"],
                 mode="lines",
                 name="BB Upper",
@@ -159,7 +239,7 @@ def _build_plotly_figure(df, ticker):
         )
         fig.add_trace(
             go.Scatter(
-                x=df.index,
+                x=x_values,
                 y=df["bb_lower"],
                 mode="lines",
                 name="BB Lower",
@@ -171,7 +251,7 @@ def _build_plotly_figure(df, ticker):
         )
         fig.add_trace(
             go.Scatter(
-                x=df.index,
+                x=x_values,
                 y=df["bb_middle"],
                 mode="lines",
                 name="BB SMA-20",
@@ -186,7 +266,7 @@ def _build_plotly_figure(df, ticker):
         if buy_mask.any():
             fig.add_trace(
                 go.Scatter(
-                    x=df.index[buy_mask],
+                    x=_plot_x_values(df.index[buy_mask]),
                     y=df.loc[buy_mask, "Low"],
                     mode="text",
                     text=df.loc[buy_mask, "buy_setup_count"].astype(int).astype(str),
@@ -202,7 +282,7 @@ def _build_plotly_figure(df, ticker):
         if sell_mask.any():
             fig.add_trace(
                 go.Scatter(
-                    x=df.index[sell_mask],
+                    x=_plot_x_values(df.index[sell_mask]),
                     y=df.loc[sell_mask, "High"],
                     mode="text",
                     text=df.loc[sell_mask, "sell_setup_count"].astype(int).astype(str),
@@ -216,7 +296,7 @@ def _build_plotly_figure(df, ticker):
     # Bottom panel: countdown bars.
     fig.add_trace(
         go.Bar(
-            x=df.index,
+            x=x_values,
             y=df.get("buy_countdown_count", 0),
             name="Buy CD",
             marker_color="rgba(0,128,0,0.35)",
@@ -225,7 +305,7 @@ def _build_plotly_figure(df, ticker):
     )
     fig.add_trace(
         go.Bar(
-            x=df.index,
+            x=x_values,
             y=df.get("sell_countdown_count", 0),
             name="Sell CD",
             marker_color="rgba(255,0,0,0.35)",
