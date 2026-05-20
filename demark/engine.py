@@ -344,8 +344,8 @@ class DeMarkEngine:
         # Calculate News Score for the latest bar
         if news_count == 0:
             news_score = 0.0
-        elif 1 <= news_count <= 5:
-            news_score = 2.0 * news_count
+        elif 1 <= news_count <= 20:
+            news_score = 0.5 * news_count
         else:
             news_score = 10.0
             

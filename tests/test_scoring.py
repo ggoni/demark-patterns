@@ -88,14 +88,20 @@ def test_news_intensity_scoring():
     assert engine.df.iloc[-1]['news_score'] == 0.0
     assert pytest.approx(score_0) == 3.0  # Vol score is 5.0 (since RVOL = 1.0) -> 5.0 * 0.6 = 3.0
     
-    # 3 articles (between 1 and 5) -> News score = 6.0
+    # 3 articles (between 1 and 20) -> News score = 1.5
     engine = DeMarkEngine(df)
     score_3 = engine.calculate_buy_scoring(news_count=3)
-    assert engine.df.iloc[-1]['news_score'] == 6.0
-    assert pytest.approx(score_3) == 5.4  # 5.0 * 0.6 + 6.0 * 0.4 = 3.0 + 2.4 = 5.4
+    assert engine.df.iloc[-1]['news_score'] == 1.5
+    assert pytest.approx(score_3) == 3.6  # 5.0 * 0.6 + 1.5 * 0.4 = 3.0 + 0.6 = 3.6
     
-    # 6 articles (greater than 5) -> News score = 10.0
+    # 10 articles (between 1 and 20) -> News score = 5.0
     engine = DeMarkEngine(df)
-    score_6 = engine.calculate_buy_scoring(news_count=6)
+    score_10 = engine.calculate_buy_scoring(news_count=10)
+    assert engine.df.iloc[-1]['news_score'] == 5.0
+    assert pytest.approx(score_10) == 5.0  # 5.0 * 0.6 + 5.0 * 0.4 = 3.0 + 2.0 = 5.0
+    
+    # 21 articles (greater than 20) -> News score = 10.0
+    engine = DeMarkEngine(df)
+    score_21 = engine.calculate_buy_scoring(news_count=21)
     assert engine.df.iloc[-1]['news_score'] == 10.0
-    assert pytest.approx(score_6) == 7.0  # 5.0 * 0.6 + 10.0 * 0.4 = 3.0 + 4.0 = 7.0
+    assert pytest.approx(score_21) == 7.0  # 5.0 * 0.6 + 10.0 * 0.4 = 3.0 + 4.0 = 7.0
