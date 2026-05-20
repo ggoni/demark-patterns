@@ -5,8 +5,8 @@
 
 ## 2. DeMark Engine Scoring Implementation
 
-- [ ] 2.1 Add `calculate_buy_scoring` method in `demark/engine.py` to compute Relative Volume (RVOL), Relative Volume Score, News Intensity Score, and Combined Importance Score
-- [ ] 2.2 Add comprehensive unit tests in `tests/test_scoring.py` to verify volume scoring, news scoring, and combined weighted scoring logic for all tickers
+- [x] 2.1 Add `calculate_buy_scoring` method in `demark/engine.py` to compute Relative Volume (RVOL), Relative Volume Score, News Intensity Score, and Combined Importance Score
+- [x] 2.2 Add comprehensive unit tests in `tests/test_scoring.py` to verify volume scoring, news scoring, and combined weighted scoring logic for all tickers
 
 ## 3. Scanner Output and Sorting Implementation
 

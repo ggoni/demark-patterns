@@ -146,16 +146,19 @@ class DeMarkEngine:
                     sell_bar8_close = np.nan
                     sell_ext_count = 0
 
-            # Start/Reset on Setup completion
+            # Start on Setup completion — only when no countdown is active.
+            # An in-progress countdown is cancelled exclusively by the recycle (>18) rule above.
             if self.df.iloc[i]['buy_setup_count'] == 9:
-                active_buy_countdown = True
-                buy_count = 0
-                buy_ext_count = 0
+                if not active_buy_countdown:
+                    active_buy_countdown = True
+                    buy_count = 0
+                    buy_ext_count = 0
 
             if self.df.iloc[i]['sell_setup_count'] == 9:
-                active_sell_countdown = True
-                sell_count = 0
-                sell_ext_count = 0
+                if not active_sell_countdown:
+                    active_sell_countdown = True
+                    sell_count = 0
+                    sell_ext_count = 0
                 
             # Process Buy Countdown
             if active_buy_countdown and i >= 2:
@@ -297,7 +300,66 @@ class DeMarkEngine:
         self.df['bb_lower'] = self.df['bb_middle'] - std_dev * rolling_std
         return self.df
 
-    def run_all(self) -> pd.DataFrame:
+    def calculate_buy_scoring(self, news_count: int = 0) -> float:
+        """
+        Compute Relative Volume (RVOL), Relative Volume Score, News Intensity Score,
+        and Combined Importance Score for the latest bar.
+        Saves these to the last row of the DataFrame and returns the combined score.
+        """
+        if self.df.empty:
+            return 0.0
+
+        if 'Volume' not in self.df.columns:
+            # Handle missing Volume column gracefully (e.g., in unit tests without volume data)
+            self.df['vol_sma20'] = np.nan
+            self.df['rvol'] = 0.0
+            self.df['volume_score'] = 0.0
+            self.df['news_score'] = 0.0
+            self.df['combined_score'] = 0.0
+            return 0.0
+
+        # Calculate 20-day Volume SMA for the entire dataframe
+        # min_periods=1 to handle datasets with < 20 rows
+        self.df['vol_sma20'] = self.df['Volume'].rolling(window=20, min_periods=1).mean()
+        
+        # Calculate RVOL for the entire dataframe
+        self.df['rvol'] = np.where(
+            self.df['vol_sma20'] > 0,
+            self.df['Volume'] / self.df['vol_sma20'],
+            0.0
+        )
+        
+        # Calculate volume score for the entire dataframe
+        self.df['volume_score'] = np.where(
+            self.df['rvol'] < 1.0,
+            5.0 * self.df['rvol'],
+            np.minimum(10.0, 5.0 + 2.5 * (self.df['rvol'] - 1.0))
+        )
+        
+        # For news intensity score, since we only have news count for the latest bar,
+        # we initialize the column and set the value on the last row.
+        self.df['news_score'] = 0.0
+        self.df['combined_score'] = 0.0
+        
+        # Calculate News Score for the latest bar
+        if news_count == 0:
+            news_score = 0.0
+        elif 1 <= news_count <= 5:
+            news_score = 2.0 * news_count
+        else:
+            news_score = 10.0
+            
+        last_idx = self.df.index[-1]
+        self.df.at[last_idx, 'news_score'] = news_score
+        
+        # Calculate Combined Score for the latest bar
+        vol_score = self.df.at[last_idx, 'volume_score']
+        combined_score = (vol_score * 0.6) + (news_score * 0.4)
+        self.df.at[last_idx, 'combined_score'] = combined_score
+        
+        return float(combined_score)
+
+    def run_all(self, news_count: int = 0) -> pd.DataFrame:
         """Run all DeMark calculations in sequence."""
         self.calculate_setup()
         self.validate_intersection()
@@ -305,4 +367,5 @@ class DeMarkEngine:
         self.calculate_tdst()
         self.calculate_bollinger_bands()
         self.calculate_recommendations()
+        self.calculate_buy_scoring(news_count)
         return self.df
