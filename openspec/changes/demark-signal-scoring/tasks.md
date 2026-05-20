@@ -10,7 +10,7 @@
 
 ## 3. Scanner Output and Sorting Implementation
 
-- [ ] 3.1 Update `run_scanner` in `demark/cli.py` to calculate scores for each ticker in the scan list
-- [ ] 3.2 Add the new Importance Score column to the scanner's CLI table output
-- [ ] 3.3 Sort final scanned signals by Combined Importance Score in descending order in both the CLI printed table and the exported CSV file
-- [ ] 3.4 Verify sorting and score accuracy using integration tests
+- [x] 3.1 Update `run_scanner` in `demark/cli.py` to calculate scores for each ticker in the scan list
+- [x] 3.2 Add the new Importance Score column to the scanner's CLI table output
+- [x] 3.3 Sort final scanned signals by Combined Importance Score in descending order in both the CLI printed table and the exported CSV file
+- [x] 3.4 Verify sorting and score accuracy using integration tests

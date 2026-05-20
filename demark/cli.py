@@ -133,8 +133,6 @@ def run_scanner(args):
 
     total = len(tickers)
     print(f"Scanning {total} tickers from {args.scan}...")
-    print(f"{'Ticker':<10} {'Price':<10} {'Support':<10} {'Resist':<10} {'Action'}")
-    print("-" * 70)
     
     signals = []
     provider = YFinanceProvider()
@@ -145,13 +143,13 @@ def run_scanner(args):
     RESET  = '\033[0m'
 
     for i, ticker in enumerate(tickers, 1):
-        if i % 100 == 0:
-            print(f"Progress: {i}/{total} tickers scanned...", end='\r')
+        print(f"Scanning {i}/{total}: {ticker}...", end='\r')
             
         try:
             df = provider.fetch_data(ticker, interval=args.interval, period=args.period)
+            news_count = provider.fetch_news_count_24h(ticker)
             engine = DeMarkEngine(df)
-            results = engine.run_all()
+            results = engine.run_all(news_count=news_count)
             
             last_row = results.iloc[-1]
             rec = last_row['recommendation']
@@ -160,32 +158,43 @@ def run_scanner(args):
                 price = last_row['Close']
                 support = last_row['tdst_support'] if not pd.isna(last_row['tdst_support']) else None
                 resist = last_row['tdst_resistance'] if not pd.isna(last_row['tdst_resistance']) else None
+                score = last_row['combined_score']
                 
                 signal_data = {
                     'Ticker': ticker,
                     'Price': f"{price:.2f}",
                     'Support': f"{support:.2f}" if support is not None else "N/A",
                     'Resist': f"{resist:.2f}" if resist is not None else "N/A",
-                    'Action': rec
+                    'Action': rec,
+                    'Score': f"{score:.2f}",
+                    'ScoreVal': score
                 }
                 signals.append(signal_data)
-                
-                color = GREEN if rec.startswith("BUY") else RED
-                action_colored = f"{color}{rec}{RESET}"
-                
-                print(" " * 50, end='\r')
-                print(f"{ticker:<10} {signal_data['Price']:<10} {signal_data['Support']:<10} {signal_data['Resist']:<10} {action_colored}")
         except Exception:
             continue
 
-    print("-" * 70)
+    # Clear progress line
+    print(" " * 60, end='\r')
     
     if not signals:
         print(f"\nScan complete. No BUY or SELL signals found among {total} tickers.")
     else:
         print(f"\nScan complete. Found {len(signals)} signals among {total} tickers.")
         
-        # Save to file
+        # Sort final scanned signals by Combined Importance Score in descending order
+        signals.sort(key=lambda s: s['ScoreVal'], reverse=True)
+        
+        # Print sorted summary table
+        print(f"\n{'Ticker':<10} {'Price':<10} {'Support':<10} {'Resist':<10} {'Action':<22} {'Score'}")
+        print("-" * 70)
+        for sig in signals:
+            color = GREEN if sig['Action'].startswith("BUY") else RED
+            action_str = f"{sig['Action']:<22}"
+            action_colored = f"{color}{action_str}{RESET}"
+            print(f"{sig['Ticker']:<10} {sig['Price']:<10} {sig['Support']:<10} {sig['Resist']:<10} {action_colored} {sig['Score']}")
+        print("-" * 70)
+        
+        # Save to file (drop the auxiliary sorting key)
         output_dir = "analysis"
         os.makedirs(output_dir, exist_ok=True)
         
@@ -195,7 +204,8 @@ def run_scanner(args):
             date_str = datetime.now().strftime('%y%m%d_%H%M%S')
             out_path = os.path.join(output_dir, f"scan_results_{date_str}.csv")
             
-        pd.DataFrame(signals).to_csv(out_path, index=False)
+        df_export = pd.DataFrame(signals).drop(columns=['ScoreVal'], errors='ignore')
+        df_export.to_csv(out_path, index=False)
         print(f"Results saved to {out_path}")
 
 def save_to_csv(df, ticker, output_dir):
