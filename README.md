@@ -15,6 +15,8 @@ A robust technical analysis engine that implements Tom DeMark’s Sequential and
   - **Volatility Filtering**: Overbought/Oversold detection using Bollinger Bands.
   - **Trend Breakouts**: Event-driven alerts for TDST Support/Resistance crossovers.
 - **Interactive CLI**: Fetch data for any ticker and visualize the results.
+- **DeMark Signal Scoring**: Combines Relative Volume (RVOL = Today Volume / 20-day Volume SMA) and Yahoo Finance news intensity to calculate a 0-10 combined importance score for each scanned ticker.
+- **Importance Sorting**: Automatically ranks scanner summary outputs and exported CSV files descending by Combined Importance Score.
 - **Browser-Compliant Plot Artifacts**: Generate Plotly HTML outputs for native browser interactivity.
 
 ## Installation
@@ -33,19 +35,18 @@ Run the analysis for any ticker or scan a list:
 # Single ticker analysis
 uv run demark --ticker NVDA --interval 1d --period 1y --plot
 uv run demark --ticker NVDA --interval 1d --period 1y --plot --plot-output-mode both
-uv run demark --ticker AAPL --interval 1d --period 1y --plot --plot-output-mode html
 uv run demark --ticker AAPL --period 1mo --no-save
 uv run demark --ticker AAPL --interval 1d --period 1y --debug-setups
 
-# Bulk scan mode (reads from a file, returns only BUY/SELL signals)
-uv run demark --scan line.txt
-uv run demark --scan watchlist.txt --interval 1h --period 1mo
+# Bulk scan mode (reads from a file, returns DeMark signals sorted descending by Importance Score)
+uv run demark --scan watchlist.txt
+uv run demark --scan watchlist.txt --interval 1d --period 1y
 ```
 
 ### CLI Arguments
 
 - `--ticker`: The stock ticker symbol (e.g., AAPL, BTC-USD, NVDA).
-- `--scan`: Path to a text file with a list of tickers (space-separated or line-separated) to analyze. Returns only those with `BUY` or `SELL` signals.
+- `--scan`: Path to a text file with a list of tickers (space-separated or line-separated) to analyze. Returns DeMark signals sorted descending by Importance Score.
 - `--output`: Optional. Custom output path for scan results CSV. If not provided, saves to `analysis/scan_results_<timestamp>.csv`.
 - `--interval`: Data interval (1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo).
 - `--period`: Data period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max).

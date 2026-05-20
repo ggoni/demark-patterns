@@ -471,3 +471,66 @@ def test_sell_countdown_recycle_threshold_19_does_fire():
     )
     recycle_idx = engine.df.index[engine.df['sell_countdown_recycled']].tolist()[0]
     assert recycle_idx == engine.df.index[23]
+
+
+def test_countdown_not_reset_by_second_setup_9():
+    """
+    Regression: a second same-direction Setup 9 that does NOT cross the recycle
+    threshold (extension < 18 bars) must NOT reset an in-progress countdown.
+
+    Spec: openspec/specs/countdown-recycle/spec.md
+          "New setup under 18 bars does not recycle"
+
+    Series construction
+    -------------------
+    idx  0-4   flat 100 (no setup yet)
+    idx  5-13  decline 90→82  → first Buy Setup-9 at idx 13
+    idx 14-16  continue declining 81,80,79 → countdown advances to 3
+    idx 17-22  sharp bounce 100→105       → setup streak breaks, countdown pauses
+    idx 23-31  decline 94→86 with price flip at 23 → second Buy Setup-9 at idx 31
+    idx 32-35  tail
+
+    Pre-fix behaviour: buy_count reset to 0 at idx 31 → df shows 1 on that bar.
+    Post-fix behaviour: count continues uninterrupted → df shows 12 on that bar,
+                        13 on idx 32 (bar-13 qualification also passes).
+    """
+    closes = (
+        [100.0] * 5 +
+        [90.0 - i for i in range(9)] +       # first Setup-9 at idx 13
+        [81.0, 80.0, 79.0] +                 # countdown ticks 1-3; setup extends past 9
+        [100.0 + i for i in range(6)] +      # bounce; breaks setup streak
+        [94.0 - i for i in range(9)] +       # second Setup-9 at idx 31
+        [85.0 - i for i in range(4)]         # tail
+    )
+    dates = pd.date_range("2023-01-01", periods=len(closes))
+    lows  = [c - 1.0 for c in closes]
+    highs = [c + 1.0 for c in closes]
+    df = pd.DataFrame({"Close": closes, "Low": lows, "High": highs}, index=dates)
+
+    engine = DeMarkEngine(df)
+    engine.calculate_setup()
+
+    setup9_positions = [i for i, v in enumerate(engine.df['buy_setup_count']) if v == 9]
+    assert setup9_positions == [13, 31], (
+        f"Series must produce Buy Setup-9 at exactly idx 13 and 31; got {setup9_positions}"
+    )
+
+    engine.calculate_countdown()
+    results = engine.df
+
+    # At idx 30 the count must be 12 (not yet qualified as bar 13) — same in both pre/post-fix.
+    assert results.iloc[30]['buy_countdown_count'] == 12, (
+        f"Expected 12 at idx 30, got {results.iloc[30]['buy_countdown_count']}."
+    )
+    # At the second Setup-9 bar (idx 31) the count must complete to 13, not reset to 1.
+    # Pre-fix: buy_count was reset to 0 then advanced to 1 → df shows 1.
+    # Post-fix: count continues from 12 and bar-13 qualification passes → df shows 13.
+    assert results.iloc[31]['buy_countdown_count'] == 13, (
+        f"Expected 13 at second Setup-9 bar (countdown completion), "
+        f"got {results.iloc[31]['buy_countdown_count']}. "
+        f"A result of 1 reproduces the bug: countdown was unconditionally reset on Setup-9."
+    )
+    # Recycle must not have fired (only 9 extension bars, well under 18).
+    assert not results['buy_countdown_recycled'].any(), (
+        "Recycle must not fire — extension was 9 bars, under the 18-bar threshold."
+    )

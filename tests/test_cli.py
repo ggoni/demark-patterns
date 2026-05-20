@@ -178,8 +178,8 @@ def test_cli_prints_error_and_exits_on_fetch_failure(
     assert "Error: network down" in capsys.readouterr().out
 
 
-def _plot_frame():
-    index = pd.date_range("2023-01-01", periods=5)
+def _plot_frame(tz=None):
+    index = pd.date_range("2023-01-01", periods=5, tz=tz)
     return pd.DataFrame(
         {
             "Close": [100.0, 101.0, 102.0, 101.5, 103.0],
@@ -224,6 +224,16 @@ def test_save_to_csv_writes_output_file(tmp_path):
 
 def test_plot_results_writes_png_file(tmp_path):
     df = _plot_frame()
+
+    cli.plot_results(df, "AAPL", str(tmp_path))
+
+    files = list(tmp_path.glob("AAPL_*.png"))
+    assert len(files) == 1
+    assert files[0].stat().st_size > 0
+
+
+def test_plot_results_writes_png_file_with_timezone_aware_index(tmp_path):
+    df = _plot_frame(tz="America/New_York")
 
     cli.plot_results(df, "AAPL", str(tmp_path))
 
