@@ -8,6 +8,11 @@ class BaseProvider(ABC):
         """Fetch OHLCV data from the source."""
         pass
 
+    @abstractmethod
+    def fetch_news_count_24h(self, ticker: str) -> int:
+        """Fetch the number of news articles in the last 24 hours for a ticker."""
+        pass
+
 class YFinanceProvider(BaseProvider):
     def fetch_data(self, ticker: str, interval: str = "1d", period: str = "1y") -> pd.DataFrame:
         """Fetch OHLCV data from Yahoo Finance."""
@@ -35,3 +40,27 @@ class YFinanceProvider(BaseProvider):
             df[required_columns] = df[required_columns].ffill()
 
         return df[required_columns]
+
+    def fetch_news_count_24h(self, ticker: str) -> int:
+        """Fetch the number of news articles in the last 24 hours from Yahoo Finance."""
+        try:
+            ticker_obj = yf.Ticker(ticker)
+            news = ticker_obj.news
+            if not news:
+                return 0
+            
+            from datetime import datetime, timezone, timedelta
+            now = datetime.now(timezone.utc)
+            count = 0
+            for item in news:
+                pub_date_str = item.get('pubDate') or item.get('content', {}).get('pubDate')
+                if pub_date_str:
+                    # Clean/parse date string
+                    dt = datetime.fromisoformat(pub_date_str.replace('Z', '+00:00'))
+                    if now - dt <= timedelta(hours=24):
+                        count += 1
+            return count
+        except Exception:
+            # Fallback to 0 if endpoint fails or rate limited
+            return 0
+
