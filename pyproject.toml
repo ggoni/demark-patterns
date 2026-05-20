@@ -1,7 +1,7 @@
 [project]
 name = "demark-patterns"
 version = "0.1.0"
-description = "Add your description here"
+description = "DeMark Sequential indicator engine with Rust-accelerated backend"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -14,11 +14,23 @@ dependencies = [
     "yfinance>=1.3.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "maturin>=1.7",
+]
+
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+# Python source package alongside the Rust extension
+python-source = "."
+module-name = "demark._demark_rust"
+features = ["pyo3/extension-module"]
+
 [tool.uv]
 package = true
-
-[tool.setuptools.packages.find]
-include = ["demark"]
 
 [project.scripts]
 demark = "demark.cli:main"

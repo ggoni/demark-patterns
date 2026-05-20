@@ -1,7 +1,30 @@
+"""DeMark engine — auto-selects Rust backend when available.
+
+Rollback:
+  export DEMARK_USE_RUST=false   # force Python engine
+  unset DEMARK_USE_RUST          # auto-detect (default)
+"""
+from __future__ import annotations
+
+import os
 import pandas as pd
 import numpy as np
 
-class DeMarkEngine:
+# ─── Rust backend probe ───────────────────────────────────────────────────────
+_FORCE_PYTHON = os.environ.get("DEMARK_USE_RUST", "true").lower() == "false"
+try:
+    if not _FORCE_PYTHON:
+        from demark import _demark_rust as _rust  # compiled with maturin
+        _RUST_AVAILABLE = True
+    else:
+        _RUST_AVAILABLE = False
+except ImportError:
+    _rust = None  # type: ignore[assignment]
+    _RUST_AVAILABLE = False
+
+
+# ─── Legacy Python engine (preserved 100%, rename only) ───────────────────────
+class _PythonDeMarkEngine:
     def __init__(self, df: pd.DataFrame):
         self.df = df.copy()
 
@@ -369,3 +392,138 @@ class DeMarkEngine:
         self.calculate_recommendations()
         self.calculate_buy_scoring(news_count)
         return self.df
+
+
+# ─── Rust-accelerated engine ──────────────────────────────────────────────────
+class _RustDeMarkEngine:
+    """Delegates all numeric computation to the compiled _demark_rust extension."""
+
+    def __init__(self, df: pd.DataFrame):
+        self.df = df.copy()
+
+    def calculate_setup(self) -> pd.DataFrame:
+        close = self.df["Close"].to_numpy(dtype=float).tolist()
+        high = self.df["High"].to_numpy(dtype=float).tolist()
+        low = self.df["Low"].to_numpy(dtype=float).tolist()
+        buy_cnt, sell_cnt, buy_perf, sell_perf = _rust.calculate_setup(close, high, low)
+        self.df["buy_setup_count"] = buy_cnt
+        self.df["sell_setup_count"] = sell_cnt
+        self.df["buy_perfect"] = [bool(x) for x in buy_perf]
+        self.df["sell_perfect"] = [bool(x) for x in sell_perf]
+        return self.df
+
+    def validate_intersection(self) -> pd.DataFrame:
+        high = self.df["High"].to_numpy(dtype=float).tolist()
+        low = self.df["Low"].to_numpy(dtype=float).tolist()
+        bsc = self.df["buy_setup_count"].tolist()
+        ssc = self.df["sell_setup_count"].tolist()
+        buy_int, sell_int = _rust.validate_intersection(high, low, bsc, ssc)
+        self.df["buy_intersection"] = [bool(x) for x in buy_int]
+        self.df["sell_intersection"] = [bool(x) for x in sell_int]
+        return self.df
+
+    def calculate_countdown(self) -> pd.DataFrame:
+        close = self.df["Close"].to_numpy(dtype=float).tolist()
+        high = self.df["High"].to_numpy(dtype=float).tolist()
+        low = self.df["Low"].to_numpy(dtype=float).tolist()
+        bsc = self.df["buy_setup_count"].tolist()
+        ssc = self.df["sell_setup_count"].tolist()
+        buy_cd, sell_cd, buy_rec, sell_rec = _rust.calculate_countdown(
+            close, high, low, bsc, ssc
+        )
+        self.df["buy_countdown_count"] = buy_cd
+        self.df["sell_countdown_count"] = sell_cd
+        self.df["buy_countdown_recycled"] = [bool(x) for x in buy_rec]
+        self.df["sell_countdown_recycled"] = [bool(x) for x in sell_rec]
+        return self.df
+
+    def calculate_tdst(self) -> pd.DataFrame:
+        high = self.df["High"].to_numpy(dtype=float).tolist()
+        low = self.df["Low"].to_numpy(dtype=float).tolist()
+        bsc = self.df["buy_setup_count"].tolist()
+        ssc = self.df["sell_setup_count"].tolist()
+        support, resistance = _rust.calculate_tdst(high, low, bsc, ssc)
+        self.df["tdst_support"] = support
+        self.df["tdst_resistance"] = resistance
+        return self.df
+
+    def calculate_bollinger_bands(self, period: int = 20, std_dev: float = 2.0) -> pd.DataFrame:
+        close = self.df["Close"].to_numpy(dtype=float).tolist()
+        mid, upper, lower = _rust.calculate_bollinger_bands(close, period, std_dev)
+        self.df["bb_middle"] = mid
+        self.df["bb_upper"] = upper
+        self.df["bb_lower"] = lower
+        return self.df
+
+    def calculate_recommendations(self) -> pd.DataFrame:
+        # Vectorizable branching logic — kept in Python (not the bottleneck)
+        self.df["recommendation"] = "HOLD"
+        for i in range(len(self.df)):
+            close = self.df.iloc[i]["Close"]
+            support = self.df.iloc[i]["tdst_support"]
+            resist = self.df.iloc[i]["tdst_resistance"]
+            bb_upper = self.df.iloc[i]["bb_upper"]
+            bb_lower = self.df.iloc[i]["bb_lower"]
+            s_9 = self.df.iloc[i]["sell_setup_count"] == 9
+            b_9 = self.df.iloc[i]["buy_setup_count"] == 9
+            s_13 = self.df.iloc[i]["sell_countdown_count"] == 13
+            b_13 = self.df.iloc[i]["buy_countdown_count"] == 13
+            rec = "HOLD"
+            if s_9 or s_13:
+                rec = "SELL (Overbought)" if close > bb_upper else "SELL (Setup Complete)"
+            if not np.isnan(support) and i > 0:
+                prev_close = self.df.iloc[i - 1]["Close"]
+                if close < support and prev_close >= support:
+                    rec = "SELL (Support Break)"
+            if b_9 or b_13:
+                rec = "BUY (Oversold)" if close < bb_lower else "BUY (Setup Complete)"
+            if not np.isnan(resist) and i > 0:
+                prev_close = self.df.iloc[i - 1]["Close"]
+                if close > resist and prev_close <= resist:
+                    rec = "BUY (Resistance Break)"
+            self.df.at[self.df.index[i], "recommendation"] = rec
+        return self.df
+
+    def calculate_buy_scoring(self, news_count: int = 0) -> float:
+        if self.df.empty:
+            return 0.0
+        if "Volume" not in self.df.columns:
+            for col in ("vol_sma20", "rvol", "volume_score", "news_score", "combined_score"):
+                self.df[col] = 0.0 if col != "vol_sma20" else np.nan
+            return 0.0
+        volume = self.df["Volume"].to_numpy(dtype=float).tolist()
+        vol_sma, rvol, vscore = _rust.calculate_volume_score(volume)
+        self.df["vol_sma20"] = vol_sma
+        self.df["rvol"] = rvol
+        self.df["volume_score"] = vscore
+        self.df["news_score"] = 0.0
+        self.df["combined_score"] = 0.0
+        news_score = _rust.calculate_news_score(news_count)
+        last_idx = self.df.index[-1]
+        self.df.at[last_idx, "news_score"] = news_score
+        vol_score = self.df.at[last_idx, "volume_score"]
+        combined = (vol_score * 0.6) + (news_score * 0.4)
+        self.df.at[last_idx, "combined_score"] = combined
+        return float(combined)
+
+    def run_all(self, news_count: int = 0) -> pd.DataFrame:
+        self.calculate_setup()
+        self.validate_intersection()
+        self.calculate_countdown()
+        self.calculate_tdst()
+        self.calculate_bollinger_bands()
+        self.calculate_recommendations()
+        self.calculate_buy_scoring(news_count)
+        return self.df
+
+
+# ─── Public router: tasks 4.1 + 4.2 ──────────────────────────────────────────
+if _RUST_AVAILABLE:
+    DeMarkEngine = _RustDeMarkEngine  # type: ignore[misc]
+else:
+    DeMarkEngine = _PythonDeMarkEngine  # type: ignore[misc]
+
+
+def engine_backend() -> str:
+    """Return which backend is active. Useful for diagnostics."""
+    return "rust" if _RUST_AVAILABLE else "python"
