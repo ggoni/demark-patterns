@@ -350,3 +350,39 @@ def test_cli_e2e_no_save_plot_writes_html_in_cwd_only(mock_fetch, tmp_path, monk
     html_files = list(tmp_path.glob("AAPL_*.html"))
     assert len(html_files) == 1
     assert len(list(tmp_path.glob("AAPL_*.png"))) == 0
+
+
+# --- --losers mutual exclusion tests ---
+
+import sys
+import pytest
+
+
+def test_losers_and_scan_are_mutually_exclusive(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["demark", "--losers", "--scan", "watchlist.txt"])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code != 0
+
+
+def test_losers_and_ticker_are_mutually_exclusive(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["demark", "--losers", "--ticker", "AAPL"])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code != 0
+
+
+# --- --losers integration test ---
+
+@patch("demark.cli.run_scanner_from_list")
+@patch("demark.providers.YFinanceProvider.fetch_losers")
+def test_losers_calls_run_scanner_from_list(mock_fetch_losers, mock_run_scanner, monkeypatch, capsys):
+    mock_fetch_losers.return_value = ["AAA", "BBB"]
+    monkeypatch.setattr(sys, "argv", ["demark", "--losers", "--top-n", "2"])
+
+    cli.main()
+
+    mock_fetch_losers.assert_called_once_with(2)
+    mock_run_scanner.assert_called_once()
+    call_tickers = mock_run_scanner.call_args[0][1]
+    assert call_tickers == ["AAA", "BBB"]

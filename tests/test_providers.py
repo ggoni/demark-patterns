@@ -37,6 +37,40 @@ def test_fetch_data_empty(mock_ticker, provider):
 def test_fetch_data_missing_columns(mock_ticker, provider):
     mock_df = pd.DataFrame({'Open': [100], 'Close': [101]})
     mock_ticker.return_value.history.return_value = mock_df
-    
+
     with pytest.raises(ValueError, match="missing required OHLCV columns"):
         provider.fetch_data("AAPL")
+
+
+# --- fetch_losers tests ---
+
+SAMPLE_QUOTES = [
+    {"symbol": "AAA"},
+    {"symbol": "BBB"},
+    {"symbol": "CCC"},
+    {"symbol": "DDD"},
+    {"symbol": "EEE"},
+]
+
+
+@patch("yfinance.screen")
+def test_fetch_losers_default(mock_screen, provider):
+    mock_screen.return_value = {"quotes": SAMPLE_QUOTES}
+    result = provider.fetch_losers()
+    mock_screen.assert_called_once_with("day_losers", count=10)
+    assert result == ["AAA", "BBB", "CCC", "DDD", "EEE"]
+
+
+@patch("yfinance.screen")
+def test_fetch_losers_slices_to_n(mock_screen, provider):
+    mock_screen.return_value = {"quotes": SAMPLE_QUOTES}
+    result = provider.fetch_losers(n=3)
+    assert result == ["AAA", "BBB", "CCC"]
+    assert len(result) == 3
+
+
+@patch("yfinance.screen")
+def test_fetch_losers_raises_runtime_error_on_exception(mock_screen, provider):
+    mock_screen.side_effect = Exception("network failure")
+    with pytest.raises(RuntimeError, match="Failed to fetch daily losers"):
+        provider.fetch_losers()
