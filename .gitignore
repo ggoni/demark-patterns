@@ -22,7 +22,7 @@ analysis/*.png
 analysis/*.html
 
 # Scratch / dev
-scratch/tmp_*/
+scratch/
 line.txt
 watchlist.txt
 
