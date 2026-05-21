@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Compiled extensions
+*.so
+*.dylib
+
+# Rust
+target/
+Cargo.lock.bak
+
+# Runtime outputs
+analysis/*.csv
+analysis/*.png
+analysis/*.html
+
+# Scratch / dev
+scratch/tmp_*/
+line.txt
+watchlist.txt
+
+# Misc
+.DS_Store
+*.env
