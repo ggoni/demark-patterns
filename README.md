@@ -53,12 +53,19 @@ uv run demark --ticker AAPL --interval 1d --period 1y --debug-setups
 # Bulk scan mode (reads from a file, returns DeMark signals sorted descending by Importance Score)
 uv run demark --scan watchlist.txt
 uv run demark --scan watchlist.txt --interval 1d --period 1y
+
+# Losers scan (fetch top N daily losers from Yahoo Finance and run DeMark analysis)
+uv run demark --losers
+uv run demark --losers --top-n 5
+uv run demark --losers --top-n 20 --interval 1d --period 6mo
 ```
 
 ### CLI Arguments
 
 - `--ticker`: The stock ticker symbol (e.g., AAPL, BTC-USD, NVDA).
 - `--scan`: Path to a text file with a list of tickers (space-separated or line-separated) to analyze. Returns DeMark signals sorted descending by Importance Score.
+- `--losers`: Fetch the top N daily losers from Yahoo Finance and run the scanner on them. Mutually exclusive with `--scan` and `--ticker`.
+- `--top-n`: Number of losers to fetch when using `--losers`. Default: 10.
 - `--output`: Optional. Custom output path for scan results CSV. If not provided, saves to `analysis/scan_results_<timestamp>.csv`.
 - `--interval`: Data interval (1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo).
 - `--period`: Data period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max).
