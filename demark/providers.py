@@ -13,6 +13,11 @@ class BaseProvider(ABC):
         """Fetch the number of news articles in the last 24 hours for a ticker."""
         pass
 
+    @abstractmethod
+    def fetch_losers(self, n: int = 10) -> list:
+        """Return up to n ticker symbols for the top daily losers."""
+        pass
+
 class YFinanceProvider(BaseProvider):
     def fetch_data(self, ticker: str, interval: str = "1d", period: str = "1y") -> pd.DataFrame:
         """Fetch OHLCV data from Yahoo Finance."""
@@ -40,6 +45,19 @@ class YFinanceProvider(BaseProvider):
             df[required_columns] = df[required_columns].ffill()
 
         return df[required_columns]
+
+    def fetch_losers(self, n: int = 10) -> list:
+        """Return up to n ticker symbols for the top daily losers from Yahoo Finance."""
+        try:
+            result = yf.screen("day_losers", count=n)
+            quotes = result.get("quotes", [])
+            tickers = [q["symbol"] for q in quotes if "symbol" in q]
+            return tickers[:min(n, len(tickers))]
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to fetch daily losers from Yahoo Finance: {exc}. "
+                "Try: pip install --upgrade yfinance"
+            ) from exc
 
     def fetch_news_count_24h(self, ticker: str) -> int:
         """Fetch the number of news articles in the last 24 hours from Yahoo Finance."""
