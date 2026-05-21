@@ -14,8 +14,13 @@ def _plot_x_values(values):
 
 def main():
     parser = argparse.ArgumentParser(description="DeMark Indicators Analysis Tool")
-    parser.add_argument("--ticker", type=str, help="Stock ticker (e.g., AAPL)")
-    parser.add_argument("--scan", type=str, help="Path to a text file with a list of tickers to scan")
+
+    source_group = parser.add_mutually_exclusive_group()
+    source_group.add_argument("--ticker", type=str, help="Stock ticker (e.g., AAPL)")
+    source_group.add_argument("--scan", type=str, help="Path to a text file with a list of tickers to scan")
+    source_group.add_argument("--losers", action="store_true", help="Scan top N daily losers from Yahoo Finance")
+
+    parser.add_argument("--top-n", type=int, default=10, help="Number of losers to fetch with --losers (default: 10)")
     parser.add_argument("--interval", type=str, default="1d", help="Data interval (1m, 1h, 1d, 1wk)")
     parser.add_argument("--period", type=str, default="1y", help="Data period (1mo, 6mo, 1y, max)")
     parser.add_argument("--plot", action="store_true", help="Plot the results")
@@ -32,11 +37,22 @@ def main():
         help="Print setup diagnostics to explain TDST support/resistance availability",
     )
     parser.add_argument("--output", type=str, help="Custom output path for scan results CSV")
-    
+
     args = parser.parse_args()
-    
-    if not args.ticker and not args.scan:
-        parser.error("Either --ticker or --scan must be provided")
+
+    if not args.ticker and not args.scan and not args.losers:
+        parser.error("One of --ticker, --scan, or --losers must be provided")
+
+    if args.losers:
+        provider = YFinanceProvider()
+        try:
+            tickers = provider.fetch_losers(args.top_n)
+        except RuntimeError as e:
+            print(f"Error: {e}")
+            return
+        print(f"Fetched {len(tickers)} losers: {', '.join(tickers)}")
+        run_scanner_from_list(args, tickers, label=f"top-{args.top_n}-losers")
+        return
 
     if args.scan:
         run_scanner(args)
@@ -130,13 +146,16 @@ def run_scanner(args):
     except Exception as e:
         print(f"Error loading scanner file: {e}")
         return
+    run_scanner_from_list(args, tickers, label=args.scan)
 
+
+def run_scanner_from_list(args, tickers, label="tickers"):
     total = len(tickers)
-    print(f"Scanning {total} tickers from {args.scan}...")
-    
+    print(f"Scanning {total} tickers from {label}...")
+
     signals = []
     provider = YFinanceProvider()
-    
+
     # ANSI color helpers
     GREEN  = '\033[92m'
     RED    = '\033[91m'
@@ -144,22 +163,22 @@ def run_scanner(args):
 
     for i, ticker in enumerate(tickers, 1):
         print(f"Scanning {i}/{total}: {ticker}...", end='\r')
-            
+
         try:
             df = provider.fetch_data(ticker, interval=args.interval, period=args.period)
             news_count = provider.fetch_news_count_24h(ticker)
             engine = DeMarkEngine(df)
             results = engine.run_all(news_count=news_count)
-            
+
             last_row = results.iloc[-1]
             rec = last_row['recommendation']
-            
+
             if rec.startswith("BUY") or rec.startswith("SELL"):
                 price = last_row['Close']
                 support = last_row['tdst_support'] if not pd.isna(last_row['tdst_support']) else None
                 resist = last_row['tdst_resistance'] if not pd.isna(last_row['tdst_resistance']) else None
                 score = last_row['combined_score']
-                
+
                 signal_data = {
                     'Ticker': ticker,
                     'Price': f"{price:.2f}",
@@ -175,16 +194,15 @@ def run_scanner(args):
 
     # Clear progress line
     print(" " * 60, end='\r')
-    
+
     if not signals:
         print(f"\nScan complete. No BUY or SELL signals found among {total} tickers.")
     else:
         print(f"\nScan complete. Found {len(signals)} signals among {total} tickers.")
-        
-        # Sort final scanned signals by Combined Importance Score in descending order
+
+        # Sort by Combined Importance Score descending
         signals.sort(key=lambda s: s['ScoreVal'], reverse=True)
-        
-        # Print sorted summary table
+
         print(f"\n{'Ticker':<10} {'Price':<10} {'Support':<10} {'Resist':<10} {'Action':<22} {'Score'}")
         print("-" * 70)
         for sig in signals:
@@ -193,17 +211,16 @@ def run_scanner(args):
             action_colored = f"{color}{action_str}{RESET}"
             print(f"{sig['Ticker']:<10} {sig['Price']:<10} {sig['Support']:<10} {sig['Resist']:<10} {action_colored} {sig['Score']}")
         print("-" * 70)
-        
-        # Save to file (drop the auxiliary sorting key)
+
         output_dir = "analysis"
         os.makedirs(output_dir, exist_ok=True)
-        
+
         if args.output:
             out_path = args.output
         else:
             date_str = datetime.now().strftime('%y%m%d_%H%M%S')
             out_path = os.path.join(output_dir, f"scan_results_{date_str}.csv")
-            
+
         df_export = pd.DataFrame(signals).drop(columns=['ScoreVal'], errors='ignore')
         df_export.to_csv(out_path, index=False)
         print(f"Results saved to {out_path}")
