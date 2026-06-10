@@ -1,0 +1,4 @@
+  File "send_email_results.py", line 24
+    raise FileNotFoundError(f"Scanner file not found: {file_path}")
+                                                                 ^
+SyntaxError: invalid syntax
