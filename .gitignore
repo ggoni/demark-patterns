@@ -18,6 +18,8 @@ Cargo.lock.bak
 
 # Runtime outputs
 analysis/*.csv
+scanner_run.log
+scanner_output.log
 analysis/*.png
 analysis/*.html
 
